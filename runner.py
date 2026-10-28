@@ -148,6 +148,13 @@ def __viz_run(code):
         except BaseException as e:
             tb = traceback.extract_tb(sys.exc_info()[2])
             error_line = tb[-1].lineno if tb else None
+            # Prefer the deepest frame inside the user's own code: an error
+            # surfacing from an imported module or a callback would otherwise
+            # highlight a line number from a file the editor does not show.
+            for fr in reversed(tb):
+                if fr.filename == filename:
+                    error_line = fr.lineno
+                    break
             error_text = type(e).__name__ + ": " + str(e)
         finally:
             sys.settrace(None)
