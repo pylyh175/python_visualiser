@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python Code Visualiser</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>🐍 Python Code Visualiser</h1>
+  <span id="status">Loading Python runtime…</span>
+</header>
+
+<main>
+  <div id="left">
+    <div id="toolbar">
+      <button id="btnVisualize" disabled>▶ Visualize</button>
+      <span class="hint">Type or paste Python code, then click Visualize.</span>
+    </div>
+    <div class="editor">
+      <div class="code-area">
+        <div class="mirror" id="mirror"></div>
+        <textarea id="codeInput" spellcheck="false" wrap="off" autocomplete="off"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div id="divider" title="Drag to resize · double-click to reset"></div>
+
+  <div id="right">
+    <div class="panel" id="controlsPanel">
+      <h2>Execution steps</h2>
+      <div class="body" id="controls">
+        <button id="btnFirst" disabled>⏮ First</button>
+        <button id="btnPrev" disabled>◀ Prev</button>
+        <button id="btnNext" disabled>Next ▶</button>
+        <button id="btnLast" disabled>Last ⏭</button>
+        <span id="stepLabel">Step 0 / 0</span>
+      </div>
+      <div class="legend">
+        <span><span class="dot g">▶</span> line that just executed</span>
+        <span><span class="dot o">▶</span> next line to be executed</span>
+      </div>
+    </div>
+
+    <div class="panel" id="varsPanel">
+      <h2>Variables</h2>
+      <div id="varsBody"><span class="empty">Run some code first.</span></div>
+    </div>
+
+    <div class="panel" id="outputPanel">
+      <h2>Output</h2>
+      <div id="outputBody"></div>
+    </div>
+  </div>
+</main>
+
+<!-- Python tracer: lives in runner.py, loaded by main.js at startup. -->
+
+<script src="main.js"></script>
+</body>
+</html>
