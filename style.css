@@ -72,6 +72,15 @@ main {
   gap: 10px;
   flex-shrink: 0;
 }
+/* The execution-steps panel lives inside #left, below the editor: it blends
+   into the editor column (no double border) and keeps its natural height so
+   the editor above it absorbs any shrinkage. */
+#controlsPanel {
+  border: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
 
 /* ---------- draggable divider between editor and output ---------- */
 #divider {
@@ -197,7 +206,7 @@ textarea {
   caret-color: #111827;
 }
 
-/* ---------- right: visualisation ---------- */
+/* ---------- right: variables & output ---------- */
 #right {
   width: 430px;
   flex-shrink: 0;
