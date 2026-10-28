@@ -59,6 +59,48 @@ def __viz_make_safe(value, depth=0):
             return (name + str(inspect.signature(value)))[:MAX_STR]
         except (TypeError, ValueError):   # signature not introspectable
             return (name + "(?)")[:MAX_STR]
+    if isinstance(value, type):
+        # A class: its name plus the methods of its own body as
+        # name(parameters) — the blueprint's callable surface, sorted
+        # alphabetically (dunder methods sort first). Inherited members are
+        # deliberately left out.
+        parts = []
+        for n in sorted(vars(value)):
+            f = getattr(vars(value)[n], "__func__", vars(value)[n])   # unwrap @staticmethod/@classmethod
+            if not isinstance(f, types.FunctionType):
+                continue
+            try:
+                parts.append(n + str(inspect.signature(f)))
+            except (TypeError, ValueError):
+                parts.append(n + "(?)")
+        text = value.__name__ + " { " + ", ".join(parts) + " }"
+        if len(text) > MAX_STR:
+            text = text[:MAX_STR] + " … (truncated)"
+        return text
+    if isinstance(value, types.ModuleType):
+        return repr(value)[:MAX_STR]   # modules already have a readable repr
+    if hasattr(value, "__dict__"):
+        # An instance: class name + its live attribute values, so the user
+        # sees the object's current state instead of an address. Attributes
+        # are rendered exactly like variables elsewhere (same recursion,
+        # same caps); instances without a plain __dict__ (e.g. __slots__)
+        # fall through to the repr below.
+        attrs = [(k, v) for k, v in value.__dict__.items() if not k.startswith("__")]
+        parts = []
+        for i, (k, v) in enumerate(attrs):
+            if i >= MAX_ITEMS:
+                parts.append("… +" + str(len(attrs) - MAX_ITEMS) + " more")
+                break
+            try:
+                safe = __viz_make_safe(v, depth + 1)
+                rendered = "None" if safe is None else json.dumps(safe)
+            except Exception:
+                rendered = "<?>"
+            parts.append(k + ": " + rendered)
+        text = type(value).__name__ + " instance { " + ", ".join(parts) + " }"
+        if len(text) > MAX_STR:
+            text = text[:MAX_STR] + " … (truncated)"
+        return text
     if callable(value) or hasattr(value, "__module__"):
         try:
             return repr(value)[:MAX_STR]
