@@ -9,10 +9,12 @@ import tokenize
 import traceback
 import types
 
-STEP_LIMIT = 20000          # max recorded steps
-TIME_LIMIT = 10.0           # seconds of tracing before we stop (keeps UI responsive)
-MAX_STR = 500               # max chars kept for any string value
-MAX_ITEMS = 100             # max elements kept per container
+STEP_LIMIT = 20000        # max recorded steps
+TIME_LIMIT = 10.0         # seconds of tracing before we stop (keeps UI responsive)
+MAX_STR = 500             # max chars kept for any string value
+MAX_ITEMS = 100           # max elements kept per container
+MAX_VARS = 60             # max variables kept per snapshot
+VIZ_FILENAME = "<visualiser_code>"
 
 
 def __viz_make_safe(value, depth=0):
@@ -110,25 +112,39 @@ def __viz_make_safe(value, depth=0):
 
 
 def __viz_locals(frame):
-    """Snapshot visible variables of a frame, skipping dunders."""
+    """Snapshot everything *visible* at this point, skipping dunders.
+
+    Walks the call chain from the innermost frame out to the module:
+    a name stays visible as long as its scope is live, so variables
+    defined at module level remain shown while stepping inside a
+    function, and a function's locals disappear again once it returns.
+    Innermost scope wins on name conflicts (Python's own shadowing
+    rule), and MAX_VARS caps the list with the innermost frames first.
+    """
     out = {}
-    try:
-        items = list(frame.f_locals.items())
-    except Exception:
-        items = []
-    for name, value in items:
-        if name.startswith("__"):
-            continue
-        if len(out) >= 60:
-            out["…"] = "more variables hidden"
-            break
-        out[name] = __viz_make_safe(value)
+    f = frame
+    while f is not None:
+        if f.f_code.co_filename == VIZ_FILENAME:
+            try:
+                items = list(f.f_locals.items())
+            except Exception:
+                items = []
+            for name, value in items:
+                if name.startswith("__"):
+                    continue
+                if name in out:            # outer frame: inner already shadowed it
+                    continue
+                if len(out) >= MAX_VARS:
+                    out["…"] = "more variables hidden"
+                    return out
+                out[name] = __viz_make_safe(value)
+        f = f.f_back
     return out
 
 
 def __viz_run(code):
     """Execute user code with a line tracer, return JSON with every step."""
-    filename = "<visualiser_code>"
+    filename = VIZ_FILENAME
     steps = []
     out = io.StringIO()
     state = {"count": 0}
