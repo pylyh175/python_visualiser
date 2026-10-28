@@ -111,7 +111,7 @@ def __viz_make_safe(value, depth=0):
     return str(value)
 
 
-def __viz_locals(frame):
+def __viz_locals(frame, sticky):
     """Snapshot everything *visible* at this point, skipping dunders.
 
     Walks the call chain from the innermost frame out to the module:
@@ -120,24 +120,74 @@ def __viz_locals(frame):
     function, and a function's locals disappear again once it returns.
     Innermost scope wins on name conflicts (Python's own shadowing
     rule), and MAX_VARS caps the list with the innermost frames first.
+
+    Names defined inside a class body (methods, class attributes) are
+    additionally remembered in `sticky`: once the body finishes they
+    live on only as class attributes, but their individual entries
+    stay visible for the rest of the run (last-known value).
     """
     out = {}
+
+    def add(items):
+        # Returns False once the MAX_VARS cap was hit ("…" marker added).
+        for name, value in items:
+            if name.startswith("__") or name in out:
+                continue
+            if len(out) >= MAX_VARS:
+                out["…"] = "more variables hidden"
+                return False
+            try:
+                out[name] = __viz_make_safe(value)
+            except Exception:
+                out[name] = "<?>"
+        return True
+
+    # Innermost user-code frame; the executing frame is always the chain's
+    # head, so this is the frame whose line was just recorded.
     f = frame
+    while f is not None and f.f_code.co_filename != VIZ_FILENAME:
+        f = f.f_back
+    if f is None:
+        return out
+    try:
+        items = list(f.f_locals.items())
+    except Exception:
+        items = []
+
+    if f.f_code.co_name == "<module>":
+        # Module level: retained class-body functions come first (so a class
+        # entry sits below its methods), then globals in binding order.
+        if not add(list(sticky.items())):
+            return out
+        if not add(items):
+            return out
+    else:
+        if not add(items):
+            return out
+        # A class body executing now: remember its names so their individual
+        # entries survive the frame (last-known value).
+        if any(k == "__qualname__" for k, _ in items):
+            for name, value in items:
+                if not name.startswith("__"):
+                    try:
+                        sticky[name] = __viz_make_safe(value)
+                    except Exception:
+                        sticky[name] = "<?>"
+        # Then the remembered class-body names, ahead of the outer scopes:
+        # functions above their class, locals above globals.
+        if not add(list(sticky.items())):
+            return out
+
+    # Remaining outer user frames (typically the module frame).
+    f = f.f_back
     while f is not None:
         if f.f_code.co_filename == VIZ_FILENAME:
             try:
                 items = list(f.f_locals.items())
             except Exception:
                 items = []
-            for name, value in items:
-                if name.startswith("__"):
-                    continue
-                if name in out:            # outer frame: inner already shadowed it
-                    continue
-                if len(out) >= MAX_VARS:
-                    out["…"] = "more variables hidden"
-                    return out
-                out[name] = __viz_make_safe(value)
+            if not add(items):
+                return out
         f = f.f_back
     return out
 
@@ -148,6 +198,7 @@ def __viz_run(code):
     steps = []
     out = io.StringIO()
     state = {"count": 0}
+    sticky = {}    # class-body names (methods etc.) kept visible after the body ends
     t0 = time.monotonic()
 
     class VizStop(Exception):
@@ -164,10 +215,22 @@ def __viz_run(code):
                 return tracer   # documentation line: nothing meaningful to show
             snap = {}
             try:
-                snap = __viz_locals(frame)
+                snap = __viz_locals(frame, sticky)
             except Exception:
                 pass
             steps.append({"line": frame.f_lineno, "locals": snap, "outLen": out.tell()})
+        elif event == "return":
+            # A class body just finished: capture its complete namespace —
+            # the last def line never gets a later line event to do it.
+            # (Regular function returns have no __qualname__ and are ignored.)
+            loc = frame.f_locals
+            if "__qualname__" in loc:
+                for name, value in loc.items():
+                    if not name.startswith("__"):
+                        try:
+                            sticky[name] = __viz_make_safe(value)
+                        except Exception:
+                            sticky[name] = "<?>"
         return tracer
 
     g = {"__name__": "__main__", "__builtins__": builtins}
