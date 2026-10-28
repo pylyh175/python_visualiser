@@ -70,7 +70,18 @@ function escapeHtml(s) {
 function renderEditor() {
   const text = els.textarea.value;
   const lines = text.split('\n');
-  const currentLine = steps.length ? steps[idx].line : null;
+  // Error state: on a syntax error there are no steps at all and the line
+  // comes from programError; on a runtime error / limit stop it is the last
+  // step, but only while that step is the one being viewed (stepping back
+  // returns to the normal green/orange playback colours).
+  const atErrorStep = steps.length
+    ? idx === steps.length - 1 && (!!programError || stoppedRun)
+    : !!programError && !!programError.line;
+  const currentLine = steps.length
+    ? steps[idx].line
+    : (programError && programError.line) || null;
+  const hlClass = atErrorStep ? 'hl-error' : 'hl-current';
+  const arrowClass = atErrorStep ? 'arrow-error' : 'arrow-prev';
   const nextLine = idx + 1 < steps.length ? steps[idx + 1].line : null;
 
   const parts = [];
@@ -79,8 +90,8 @@ function renderEditor() {
     let cls = 'row';
     let arrow = '';
     if (n === currentLine) {
-      cls += ' hl-current';
-      arrow = '<span class="arrow arrow-prev">▶</span>';
+      cls += ' ' + hlClass;
+      arrow = `<span class="arrow ${arrowClass}">▶</span>`;
     } else if (n === nextLine) {
       cls += ' hl-next';
       arrow = '<span class="arrow arrow-next">▶</span>';
@@ -328,10 +339,16 @@ function render() {
   renderVars();
 }
 
+function errorDisplayText() {
+  // "Line N: …" prefix so the message matches the highlighted editor line.
+  const where = programError && programError.line ? `Line ${programError.line}: ` : '';
+  return where + (programError ? programError.text : '');
+}
+
 function renderOutput() {
   if (!steps.length) {
-    els.output.innerHTML = programError && !programError.line
-      ? `<span class="err">${escapeHtml(programError.text)}</span>`
+    els.output.innerHTML = programError
+      ? `<span class="err">${escapeHtml(errorDisplayText())}</span>`
       : '<span style="color:#9ca3af">(no output yet)</span>';
     return;
   }
@@ -339,7 +356,7 @@ function renderOutput() {
   let text = step.outLen != null ? programOutput.slice(0, step.outLen) : programOutput;
   if (text) text += '\n';
   if (idx === steps.length - 1 && programError) {
-    text += `<span class="err">${escapeHtml(programError.text)}</span>`;
+    text += `<span class="err">${escapeHtml(errorDisplayText())}</span>`;
   }
   if (idx === steps.length - 1 && stoppedRun) {
     text += '<span class="err">— execution stopped: step/time limit reached (too many steps)</span>';
@@ -380,6 +397,15 @@ function setIdx(n) {
   if (!steps.length) return;
   idx = Math.max(0, Math.min(n, steps.length - 1));
   render();
+}
+
+// Scroll the editor so the given 1-based line is comfortably in view.
+function scrollToLine(line) {
+  if (!line || line < 1) return;
+  const row = els.mirror.children[line - 1];
+  if (!row || row === mirrorSpacer) return;
+  els.textarea.scrollTop = Math.max(0, row.offsetTop - els.textarea.clientHeight / 3);
+  syncScroll();
 }
 
 els.first.addEventListener('click', () => setIdx(0));
@@ -453,12 +479,19 @@ els.visualize.addEventListener('click', async () => {
       if (!result.errorLine || !steps.length) {
         // A syntax error before anything ran: no stepping is possible.
         steps = [];
-        render();
-        return;
       }
     }
     if (!steps.length) {
       render();
+      scrollToLine(programError && programError.line);
+      return;
+    }
+    // An error or a limit stop lands straight on the last executed line —
+    // the buggy line for runtime errors — instead of the first step.
+    if (programError || stoppedRun) {
+      idx = steps.length - 1;
+      render();
+      scrollToLine(steps[idx].line);
       return;
     }
     idx = 0;
