@@ -11,6 +11,8 @@
   --green-bg: #d1fae5;
   --orange: #d97706;
   --orange-bg: #fef3c7;
+  --red: #dc2626;
+  --red-bg: #fee2e2;
   --mono: Consolas, "SF Mono", Menlo, monospace;
 }
 * { box-sizing: border-box; }
@@ -156,6 +158,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .mirror .row { height: 22px; white-space: pre; }
 .mirror .row.hl-current { background: var(--green-bg); }
 .mirror .row.hl-next { background: var(--orange-bg); }
+.mirror .row.hl-error { background: var(--red-bg); }
 .mirror .ln {
   display: inline-block;
   width: 46px;
@@ -176,8 +179,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .mirror .row.hl-current .ln { color: var(--green); font-weight: bold; }
 .mirror .row.hl-next .ln { color: var(--orange); font-weight: bold; }
+.mirror .row.hl-error .ln { color: var(--red); font-weight: bold; }
 .arrow-prev { color: var(--green); }
 .arrow-next { color: var(--orange); }
+.arrow-error { color: var(--red); }
 textarea {
   z-index: 2;
   width: 100%;
