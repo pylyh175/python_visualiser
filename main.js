@@ -353,6 +353,7 @@ function render() {
   els.slider.disabled = !total;
   renderOutput();
   renderVars();
+  ensureStepVisible();
 }
 
 function errorDisplayText() {
@@ -415,12 +416,42 @@ function setIdx(n) {
   render();
 }
 
+// The mirror row element for a 1-based line number (rows are children in
+// order; the hidden spacer is last).
+function rowAt(line) {
+  const row = els.mirror.children[line - 1];
+  return row && row !== mirrorSpacer ? row : null;
+}
+
 // Scroll the editor so the given 1-based line is comfortably in view.
 function scrollToLine(line) {
   if (!line || line < 1) return;
-  const row = els.mirror.children[line - 1];
-  if (!row || row === mirrorSpacer) return;
+  const row = rowAt(line);
+  if (!row) return;
   els.textarea.scrollTop = Math.max(0, row.offsetTop - els.textarea.clientHeight / 3);
+  syncScroll();
+}
+
+// Keep the green (just-executed) and orange (next) lines visible together
+// while stepping. Only when the two cannot both be seen in the viewport,
+// scroll just enough to bring the NEXT line into view, so the user follows
+// execution without manual scrolling. If both already fit, never scroll.
+function ensureStepVisible() {
+  if (!steps.length || idx >= steps.length) return;
+  const cur = rowAt(steps[idx].line);
+  if (!cur) return;
+  const nxt = (idx + 1 < steps.length && rowAt(steps[idx + 1].line)) || cur;
+  const t = els.textarea;
+  const top = Math.min(cur.offsetTop, nxt.offsetTop);
+  const bottom = Math.max(cur.offsetTop + cur.offsetHeight, nxt.offsetTop + nxt.offsetHeight);
+  if (top >= t.scrollTop && bottom <= t.scrollTop + t.clientHeight) return;   // both visible
+  // Not both visible: land the next line inside the viewport (a line's
+  // height of margin so it is not glued to the edge), clamped to the
+  // scroll range. Scrolling up stops just above the next line, so the
+  // just-executed line in front of it stays visible too when it fits.
+  const want = nxt.offsetTop + nxt.offsetHeight + 22 - t.clientHeight;
+  const lo = Math.max(0, nxt.offsetTop - 22);
+  t.scrollTop = Math.max(lo, Math.min(want, t.scrollHeight - t.clientHeight));
   syncScroll();
 }
 
