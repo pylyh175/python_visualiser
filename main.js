@@ -26,6 +26,7 @@ const els = {
   prev: document.getElementById('btnPrev'),
   next: document.getElementById('btnNext'),
   last: document.getElementById('btnLast'),
+  slider: document.getElementById('stepSlider'),
   stepLabel: document.getElementById('stepLabel'),
   output: document.getElementById('outputBody'),
   vars: document.getElementById('varsBody'),
@@ -347,6 +348,9 @@ function render() {
   els.stepLabel.textContent = total ? `Step ${idx + 1} / ${total}` : 'Step 0 / 0';
   els.first.disabled = els.prev.disabled = (idx <= 0);
   els.next.disabled = els.last.disabled = (idx >= total - 1);
+  els.slider.max = String(Math.max(0, total - 1));
+  els.slider.value = String(idx);
+  els.slider.disabled = !total;
   renderOutput();
   renderVars();
 }
@@ -425,8 +429,14 @@ els.prev.addEventListener('click', () => setIdx(idx - 1));
 els.next.addEventListener('click', () => setIdx(idx + 1));
 els.last.addEventListener('click', () => setIdx(steps.length - 1));
 
+// Slider jump: the input event is the single path for slider-driven
+// navigation; render() keeps the thumb in sync when idx moves by other means.
+els.slider.addEventListener('input', () => setIdx(Number(els.slider.value)));
+
 document.addEventListener('keydown', (e) => {
-  if (e.target === els.textarea) return;
+  // The slider handles ←/→ natively when focused (its input event steps);
+  // skip it here so one keypress never steps twice.
+  if (e.target === els.textarea || e.target === els.slider) return;
   if (e.key === 'ArrowLeft' || e.key === 'PageUp') { setIdx(idx - 1); e.preventDefault(); }
   if (e.key === 'ArrowRight' || e.key === 'PageDown') { setIdx(idx + 1); e.preventDefault(); }
 });
