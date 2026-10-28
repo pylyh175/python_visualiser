@@ -37,6 +37,13 @@ let idx = 0;          // current step
 let programError = null;   // { text, line } from a hard failure (e.g. syntax error)
 let stoppedRun = false;
 let programOutput = '';
+let runInProgress = false;  // a Visualize run is currently executing
+
+// Visualize is only meaningful with code on the editor, and never while a
+// run is still in flight (the user can keep typing during execution).
+function syncVisualizeEnabled() {
+  els.visualize.disabled = runInProgress || !els.textarea.value.trim();
+}
 
 /* ---------- editor rendering (mirror behind the textarea) ---------- */
 
@@ -134,13 +141,18 @@ function syncScroll() {
 
 els.textarea.addEventListener('scroll', syncScroll);
 els.textarea.addEventListener('input', () => {
+  const t = els.textarea;
+  // Code gone (or whitespace only): the previous run's trace refers to text
+  // that no longer exists — clear it so stale steps, output, and error
+  // highlighting don't linger over an empty editor.
+  if (!t.value.trim()) resetRun();
+  syncVisualizeEnabled();
   // Smart dedent: if the user just typed else/elif/except/finally at the start of
   // an indented line, pop the line back out one level (the keyword closes a block).
   // The correction is deferred (execCommand inside the 'input' event itself
   // corrupts the browser's in-flight edit) and re-verified when it runs.
   // Dedent each keyword at most once per line: characters typed right after the
   // keyword (':', ' ', …) re-match the pattern and must not pop another level.
-  const t = els.textarea;
   const pos = t.selectionStart;
   const before = t.value.slice(0, pos);
   const lineStart = before.lastIndexOf('\n') + 1;
@@ -452,7 +464,7 @@ async function init() {
     await pyodide.runPythonAsync(runnerSource);
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
-    els.visualize.disabled = false;
+    syncVisualizeEnabled();
   } catch (err) {
     els.status.textContent = 'Failed to load Python runtime (check internet connection)';
     console.error(err);
@@ -461,14 +473,24 @@ async function init() {
 
 els.visualize.addEventListener('click', async () => {
   const code = els.textarea.value;
+  if (!code.trim()) {
+    // Nothing to visualize (the button is disabled for this, but guard the
+    // race where the editor was cleared mid-click): clear the stale panels.
+    resetRun();
+    return;
+  }
   resetRun();
-  els.visualize.disabled = true;
+  runInProgress = true;
+  syncVisualizeEnabled();
   els.status.textContent = 'Executing…';
   els.status.classList.remove('ready');
   try {
     pyodide.globals.set('__viz_code', code);
     const json = await pyodide.runPythonAsync('__viz_run(__viz_code)');
     const result = JSON.parse(json);
+
+    // The editor was emptied while the run was in flight: discard the result.
+    if (!els.textarea.value.trim()) { resetRun(); return; }
 
     programOutput = result.output || '';
     steps = result.steps || [];
@@ -501,7 +523,8 @@ els.visualize.addEventListener('click', async () => {
     steps = [];
     render();
   } finally {
-    els.visualize.disabled = false;
+    runInProgress = false;
+    syncVisualizeEnabled();
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
   }
