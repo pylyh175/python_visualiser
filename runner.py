@@ -1,11 +1,13 @@
 import ast
 import builtins
+import inspect
 import io
 import json
 import sys
 import time
 import tokenize
 import traceback
+import types
 
 STEP_LIMIT = 20000          # max recorded steps
 TIME_LIMIT = 10.0           # seconds of tracing before we stop (keeps UI responsive)
@@ -47,6 +49,16 @@ def __viz_make_safe(value, depth=0):
     if isinstance(value, (set, frozenset)):
         items = [__viz_make_safe(v, depth + 1) for v in list(value)[:MAX_ITEMS]]
         return dict(enumerate(items))
+    if isinstance(value, (types.FunctionType, types.MethodType)):
+        # A bare function object's repr (<function Stack.push at 0x…>) tells
+        # the user nothing; "qualname(signature)" shows the name and the
+        # parameters instead. For bound methods the signature already
+        # excludes the bound `self`/`cls`.
+        name = getattr(value, "__qualname__", None) or getattr(value, "__name__", "?")
+        try:
+            return (name + str(inspect.signature(value)))[:MAX_STR]
+        except (TypeError, ValueError):   # signature not introspectable
+            return (name + "(?)")[:MAX_STR]
     if callable(value) or hasattr(value, "__module__"):
         try:
             return repr(value)[:MAX_STR]
