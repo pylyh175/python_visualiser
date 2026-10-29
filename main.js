@@ -19,6 +19,8 @@ const els = {
   mirror: document.getElementById('mirror'),
   textarea: document.getElementById('codeInput'),
   visualize: document.getElementById('btnVisualize'),
+  edit: document.getElementById('btnEdit'),
+  hint: document.querySelector('.hint'),
   main: document.querySelector('main'),
   divider: document.getElementById('divider'),
   right: document.getElementById('right'),
@@ -39,11 +41,24 @@ let programError = null;   // { text, line } from a hard failure (e.g. syntax er
 let stoppedRun = false;
 let programOutput = '';
 let runInProgress = false;  // a Visualize run is currently executing
+let locked = false;         // editor locked until ✎ Edit is clicked
+const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 
 // Visualize is only meaningful with code on the editor, and never while a
 // run is still in flight (the user can keep typing during execution).
 function syncVisualizeEnabled() {
   els.visualize.disabled = runInProgress || !els.textarea.value.trim();
+}
+
+// Apply the editor lock: readOnly blocks direct typing (all programmatic
+// edit paths check `locked` too, see the keydown guard), the faint tint and
+// hint text make the state visible, and Edit is enabled only while locked
+// and no run is in flight — unlocking mid-run would let code change under a
+// live execution.
+function applyLock() {
+  els.textarea.readOnly = locked;
+  els.edit.disabled = !locked || runInProgress;
+  els.hint.textContent = locked ? 'Code locked — click ✎ Edit to modify' : HINT_DEFAULT;
 }
 
 /* ---------- editor rendering (mirror behind the textarea) ---------- */
@@ -223,6 +238,7 @@ function spliceInsert(t, start, end, text) {
 
 els.textarea.addEventListener('keydown', (e) => {
   const t = els.textarea;
+  if (locked) return;   // readOnly blocks typing; these handlers must not splice values either
 
   if (e.key === 'Tab') {
     e.preventDefault();
@@ -522,7 +538,9 @@ els.visualize.addEventListener('click', async () => {
   }
   resetRun();
   runInProgress = true;
+  locked = true;
   syncVisualizeEnabled();
+  applyLock();
   els.status.textContent = 'Executing…';
   els.status.classList.remove('ready');
   try {
@@ -566,9 +584,15 @@ els.visualize.addEventListener('click', async () => {
   } finally {
     runInProgress = false;
     syncVisualizeEnabled();
+    applyLock();
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
   }
+});
+
+els.edit.addEventListener('click', () => {
+  locked = false;
+  applyLock();
 });
 
 /* ---------- draggable splitter between editor and output ---------- */
