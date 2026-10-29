@@ -32,6 +32,11 @@ const els = {
   stepLabel: document.getElementById('stepLabel'),
   output: document.getElementById('outputBody'),
   vars: document.getElementById('varsBody'),
+  outTitle: document.getElementById('outTitle'),
+  outTabs: document.getElementById('outTabs'),
+  tabOut: document.getElementById('tabOut'),
+  tabTree: document.getElementById('tabTree'),
+  treeBody: document.getElementById('treeBody'),
 };
 
 let pyodide = null;
@@ -409,6 +414,7 @@ function render() {
   els.slider.disabled = !total;
   renderOutput();
   renderVars();
+  renderTree();
   ensureStepVisible();
 }
 
@@ -535,12 +541,158 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight' || e.key === 'PageDown') { setIdx(idx + 1); e.preventDefault(); }
 });
 
+/* ---------- recursion tree (Recursion tab in the output panel) ---------- */
+
+const TREE_NODE_CAP = 80;   // nodes drawn; overflow becomes a summary row
+
+let outTab = 'out';          // active output-panel tab: 'out' | 'tree'
+let userTab = false;         // the user picked a tab — keep it for this run
+let treeAnnounced = false;   // the one-time auto-switch to the tree happened
+
+// Replay steps 0..idx into a tree: each step's `stack` (outermost user frame
+// first) registers or confirms its frames, joined parent ← child following
+// the chain order, and `ret` entries resolve nodes with return values.
+// Repetition is safe: maps are built only from ids already recorded, so
+// stepping back re-derives an earlier state exactly.
+function treeData(upTo) {
+  const nodes = new Map();   // insertion order = call order
+  const childCount = new Map();
+  for (let s = 0; s <= Math.min(upTo, steps.length - 1); s++) {
+    const stack = steps[s].stack;
+    if (stack) {
+      for (let d = 0; d < stack.length; d++) {
+        const e = stack[d];
+        if (!nodes.has(e.id)) {
+          const parent = d ? stack[d - 1].id : null;
+          nodes.set(e.id, {
+            id: e.id, parent, fn: e.fn, args: e.args || {},
+            ret: null, retSet: false, order: childCount.get(parent) || 0,
+          });
+          childCount.set(parent, (childCount.get(parent) || 0) + 1);
+        }
+      }
+    }
+    const rets = steps[s].ret;
+    if (rets) for (const r of rets) {
+      const n = nodes.get(r.id);
+      // The module frame's own return (value None) never resolves a node.
+      if (n && !n.retSet && n.fn !== '<module>') { n.ret = r.value; n.retSet = true; }
+    }
+  }
+  return nodes;
+}
+
+// Compact text form for a JSON value inside a node label.
+function treeValue(v, cap) {
+  let s = fmtValue(v);
+  if (s.length > cap) s = s.slice(0, cap) + '…';
+  return s;
+}
+
+function renderTree() {
+  // Tabs exist only for runs where a user function was called while another
+  // user function was still on the stack (i.e. actual recursion/nesting).
+  const recursive = steps.length && steps.some((s) => s.stack && s.stack.length >= 2);
+  if (!recursive) {
+    els.outTabs.hidden = true;
+    els.outTitle.hidden = false;
+    els.output.hidden = false;
+    els.treeBody.hidden = true;
+    outTab = 'out'; userTab = false; treeAnnounced = false;
+    return;
+  }
+  els.outTabs.hidden = false;
+  els.outTitle.hidden = true;
+  // Once the run actually starts recursing, show the tree (first time only —
+  // after that a manual tab choice is sticky until the run is reset).
+  const cur = steps[idx].stack || [];
+  if (!userTab && !treeAnnounced && cur.length >= 2) {
+    treeAnnounced = true;
+    outTab = 'tree';
+  }
+  els.tabOut.classList.toggle('active', outTab === 'out');
+  els.tabTree.classList.toggle('active', outTab === 'tree');
+  els.output.hidden = outTab !== 'out';
+  els.treeBody.hidden = outTab !== 'tree';
+  if (outTab !== 'tree') return;
+
+  const nodes = treeData(idx);
+  // Cap the drawing; nodes beyond the cap are always later in call order
+  // than any parents already shown, so no orphaned look-arounds occur.
+  const shown = new Map();
+  let extra = 0;
+  for (const n of nodes.values()) {
+    if (shown.size < TREE_NODE_CAP) shown.set(n.id, n);
+    else extra++;
+  }
+  const kids = new Map();
+  for (const n of shown.values()) {
+    if (n.parent !== null && !shown.has(n.parent)) continue;
+    const list = kids.get(n.parent) || [];
+    list.push(n);
+    kids.set(n.parent, list);
+  }
+  for (const list of kids.values()) list.sort((a, b) => a.order - b.order);
+
+  const curStack = steps[idx].stack || [];
+  const activeId = curStack.length ? curStack[curStack.length - 1].id : null;
+  const atErrorStep = idx === steps.length - 1 && (!!programError || stoppedRun);
+
+  const lines = [];
+  // Root = the one node with no parent (the module frame). Its id is not a
+  // fixed number: the module frame gets a 'call' event like any other.
+  let root = null;
+  for (const n of shown.values()) if (n.parent === null) { root = n; break; }
+  if (root) {
+    const rootCls = root.id === activeId ? (atErrorStep ? 'tn-error' : 'tn-active') : '';
+    lines.push(`<span class="${rootCls}">(program)</span>`);
+    const walk = (parent, prefix) => {
+      const list = kids.get(parent) || [];
+      list.forEach((k, i) => {
+        const last = i === list.length - 1;
+        let cls, label;
+        if (k.id === activeId) {
+          cls = atErrorStep ? 'tn-error' : 'tn-active';
+        } else if (k.retSet) {
+          cls = 'tn-done';
+        } else {
+          cls = '';
+        }
+        const argStr = Object.keys(k.args).slice(0, 3)
+          .map((a) => `${a}=${treeValue(k.args[a], 24)}`).join(', ');
+        label = (k.fn === '<module>' ? '(program)' : k.fn) + '(' + argStr + ')';
+        if (k.retSet) label += ' → ' + treeValue(k.ret, 40);
+        lines.push(`<span class="${cls}">${escapeHtml(prefix + (last ? '└─ ' : '├─ '))}${escapeHtml(label)}</span>`);
+        walk(k.id, prefix + (last ? '   ' : '│  '));
+      });
+    };
+    walk(root.id, '');
+  }
+  if (extra > 0) {
+    lines.push(`<span class="tn-more">+${extra} more calls not shown</span>`);
+  }
+  els.treeBody.innerHTML = lines.join('\n') || '<span class="tn-more">(no calls yet)</span>';
+  els.treeBody.scrollTop = els.treeBody.scrollHeight;
+}
+
+els.tabOut.addEventListener('click', () => {
+  outTab = 'out';
+  if (steps.length) userTab = true;   // manual choice sticks until the run resets
+  renderTree();
+});
+els.tabTree.addEventListener('click', () => {
+  outTab = 'tree';
+  if (steps.length) userTab = true;
+  renderTree();
+});
+
 function resetRun() {
   steps = [];
   programError = null;
   stoppedRun = false;
   idx = 0;
   programOutput = '';
+  outTab = 'out'; userTab = false; treeAnnounced = false;
   render();
 }
 
