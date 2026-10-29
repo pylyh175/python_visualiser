@@ -418,7 +418,14 @@ function renderVars() {
 function fmtValue(v) {
   if (v === null || v === undefined) return 'None';
   if (typeof v === 'string') return '"' + v + '"';
-  if (Array.isArray(v)) return JSON.stringify(v);
+  if (Array.isArray(v)) {
+    // List of lists: one row per line so it reads as a 2D array. (Rows are
+    // already truncated by the tracer's caps; mixed lists stay flat JSON.)
+    if (v.length > 0 && v.every(row => Array.isArray(row))) {
+      return '[' + v.map(row => JSON.stringify(row)).join(',\n ') + ']';
+    }
+    return JSON.stringify(v);
+  }
   if (typeof v === 'object') {
     const entries = Object.entries(v).map(([k, val]) => `"${k}": ${typeof val === 'string' ? '"' : ''}${val}${typeof val === 'string' ? '"' : ''}`);
     return '{' + entries.join(', ') + '}';
