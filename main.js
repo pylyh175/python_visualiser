@@ -109,7 +109,10 @@ function renderEditor() {
   // first step has nothing executed yet, so only the next-line arrow
   // shows there. The runner's synthetic final step repeats the last real
   // line, so at the end the green arrow lands on that line and nothing is
-  // left pending. Error/limit final step: red buggy-line marker instead.
+  // left pending. Return steps (the runner records one at every call
+  // return) complete a call on their own line — nothing is about to run
+  // afterwards, so they show the green arrow on the return line only.
+  // Error/limit final step: red buggy-line marker instead.
   const atErrorStep = steps.length
     ? idx === steps.length - 1 && (!!programError || stoppedRun)
     : !!programError && !!programError.line;
@@ -118,8 +121,16 @@ function renderEditor() {
   let redLine = null;
   if (steps.length) {
     if (!atErrorStep) {
-      greenLine = idx > 0 ? steps[idx - 1].line : null;
-      nextLine = steps[idx].line;
+      if (steps[idx].retStep) {
+        // A return step completes a call on its own line; the caller then
+        // resumes silently on the same line, so only the green
+        // just-finished arrow shows, on the return line itself.
+        greenLine = steps[idx].line;
+        nextLine = null;
+      } else {
+        greenLine = idx > 0 ? steps[idx - 1].line : null;
+        nextLine = steps[idx].line;
+      }
     } else {
       redLine = steps[idx].line;
     }
@@ -751,7 +762,21 @@ function renderTree() {
   for (const list of kids.values()) list.sort((a, b) => a.order - b.order);
 
   const curStack = steps[idx].stack || [];
-  const activeId = curStack.length ? curStack[curStack.length - 1].id : null;
+  // The active node is the innermost stack frame *without* a return value
+  // at this step. On ordinary line steps that is just the stack top. On a
+  // return step the top frame is the one that just resolved (it is still in
+  // the chain snapshot), so the call beneath — the one about to consume
+  // that value — is shown as active while the callee renders done below.
+  // Returns that resolve nothing displayed (the module's own) never block
+  // this: the walk falls through to the outermost frame.
+  const stepRets = steps[idx].ret || [];
+  let activeId = null;
+  for (let d = curStack.length - 1; d >= 0; d--) {
+    if (!stepRets.some((r) => r.id === curStack[d].id)) {
+      activeId = curStack[d].id;
+      break;
+    }
+  }
   const atErrorStep = idx === steps.length - 1 && (!!programError || stoppedRun);
 
   const lines = [];
@@ -767,10 +792,13 @@ function renderTree() {
       list.forEach((k, i) => {
         const last = i === list.length - 1;
         let cls, label;
-        if (k.id === activeId) {
-          cls = atErrorStep ? 'tn-error' : 'tn-active';
-        } else if (k.retSet) {
+        if (k.retSet) {
+          // Resolved beats active: during a return step the callee that
+          // just resolved is still the stack top, but the node must show
+          // its green done state with the value it returned.
           cls = 'tn-done';
+        } else if (k.id === activeId) {
+          cls = atErrorStep ? 'tn-error' : 'tn-active';
         } else {
           cls = '';
         }
