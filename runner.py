@@ -148,7 +148,9 @@ def __viz_locals(frame, sticky):
     def add(items):
         # Returns False once the MAX_VARS cap was hit ("…" marker added).
         for name, value in items:
-            if name.startswith("__") or name in out:
+            if name.startswith("__") or isinstance(value, types.ModuleType):
+                continue   # dunders never shown; imported modules are noise
+            if name in out:
                 continue
             if len(out) >= MAX_VARS:
                 out["…"] = "more variables hidden"
@@ -185,7 +187,7 @@ def __viz_locals(frame, sticky):
         # entries survive the frame (last-known value).
         if any(k == "__qualname__" for k, _ in items):
             for name, value in items:
-                if not name.startswith("__"):
+                if not name.startswith("__") and not isinstance(value, types.ModuleType):
                     try:
                         sticky[name] = __viz_make_safe(value)
                     except Exception:
@@ -243,7 +245,7 @@ def __viz_run(code):
             loc = frame.f_locals
             if "__qualname__" in loc:
                 for name, value in loc.items():
-                    if not name.startswith("__"):
+                    if not name.startswith("__") and not isinstance(value, types.ModuleType):
                         try:
                             sticky[name] = __viz_make_safe(value)
                         except Exception:
@@ -320,7 +322,7 @@ def __viz_run(code):
         final_line = error_line if (error_line and error_line > 0) else last_line
         final_locals = {}
         for name, value in g.items():
-            if not name.startswith("__"):
+            if not name.startswith("__") and not isinstance(value, types.ModuleType):
                 try:
                     final_locals[name] = __viz_make_safe(value)
                 except Exception:
