@@ -205,6 +205,15 @@ textarea {
   padding-left: 68px;          /* must equal gutter width: 46px line numbers (border-box) + 22px arrow */
   caret-color: #111827;
 }
+/* Locked editor: a faint wash (must stay semi-transparent — the highlight
+   mirror renders underneath the textarea). */
+textarea[readonly] {
+  background: rgba(37, 99, 235, 0.05);
+}
+#btnEdit:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /* ---------- right: variables & output ---------- */
 #right {
