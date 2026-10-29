@@ -17,6 +17,25 @@ MAX_VARS = 60             # max variables kept per snapshot
 VIZ_FILENAME = "<visualiser_code>"
 
 
+def __viz_signature(fn):
+    """Signature string for a function/method, with annotations kept as
+    written (eval_str=False). Under PEP 649 (Python 3.14) annotations are
+    lazy and may reference names undefined at runtime (e.g. a missing
+    `from typing import List`) — evaluating them on introspection would
+    raise, so they must be rendered without evaluation. Returns None when
+    no signature can be built at all."""
+    try:
+        return str(inspect.signature(fn, eval_str=False))
+    except TypeError:
+        # very old Python without eval_str, or not introspectable — try plain
+        try:
+            return str(inspect.signature(fn))
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+
 def __viz_make_safe(value, depth=0):
     """Convert a Python value into something JSON-representable (truncated)."""
     if depth > 5:
@@ -53,14 +72,11 @@ def __viz_make_safe(value, depth=0):
         return dict(enumerate(items))
     if isinstance(value, (types.FunctionType, types.MethodType)):
         # A bare function object's repr (<function Stack.push at 0x…>) tells
-        # the user nothing; "qualname(signature)" shows the name and the
-        # parameters instead. For bound methods the signature already
-        # excludes the bound `self`/`cls`.
+        # the user nothing; "qualname(signature)" shows the name, parameters,
+        # and any type annotations (kept as written, never evaluated).
         name = getattr(value, "__qualname__", None) or getattr(value, "__name__", "?")
-        try:
-            return (name + str(inspect.signature(value)))[:MAX_STR]
-        except (TypeError, ValueError):   # signature not introspectable
-            return (name + "(?)")[:MAX_STR]
+        sig = __viz_signature(value)
+        return (name + (sig if sig is not None else "(?)"))[:MAX_STR]
     if isinstance(value, type):
         # A class: its name plus the methods of its own body as
         # name(parameters) — the blueprint's callable surface, sorted
@@ -72,8 +88,9 @@ def __viz_make_safe(value, depth=0):
             if not isinstance(f, types.FunctionType):
                 continue
             try:
-                parts.append(n + str(inspect.signature(f)))
-            except (TypeError, ValueError):
+                sig = __viz_signature(f)
+                parts.append(n + (sig if sig is not None else "(?)"))
+            except Exception:
                 parts.append(n + "(?)")
         text = value.__name__ + " { " + ", ".join(parts) + " }"
         if len(text) > MAX_STR:
