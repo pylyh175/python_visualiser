@@ -167,61 +167,54 @@ els.textarea.addEventListener('input', () => {
   // highlighting don't linger over an empty editor.
   if (!t.value.trim()) resetRun();
   syncVisualizeEnabled();
-  // Smart dedent: if the user just typed else/elif/except/finally at the start of
-  // an indented line, pop the line back out one level (the keyword closes a block).
-  // The correction is deferred (execCommand inside the 'input' event itself
-  // corrupts the browser's in-flight edit) and re-verified when it runs.
-  // Dedent each keyword at most once per line: characters typed right after the
-  // keyword (':', ' ', …) re-match the pattern and must not pop another level.
+  // Smart dedent: typing else/elif/except/finally at the start of an
+  // indented line usually means the keyword closes a block. A blind
+  // one-level outdent misaligns it (e.g. an else under a nested if was
+  // popped out to the outer block instead of pairing with its own if), so
+  // instead find the block header the keyword pairs with — the nearest
+  // open block above — and only outdent when the typed indent is deeper
+  // than that header. Lines already at the header's indent are left alone:
+  // the check is idempotent, so follow-up keystrokes (' ', ':' …)
+  // re-running it change nothing and no per-line memory is needed.
   const pos = t.selectionStart;
   const before = t.value.slice(0, pos);
   const lineStart = before.lastIndexOf('\n') + 1;
   const typedPart = before.slice(lineStart);
-  const alreadyHandled = recentDedent
-    && recentDedent.lineStart === lineStart
-    && typedPart.startsWith(recentDedent.expectPrefix);
-  if (recentDedent && recentDedent.lineStart === lineStart && !alreadyHandled) {
-    recentDedent = null;   // line was edited after the correction; allow again
-  }
-  if (!alreadyHandled) {
-    const m = typedPart.match(/^( {1,})(else|elif|except|finally)(?![A-Za-z_])/);
-    if (m && m[1].length >= INDENT.length) {
-      setTimeout(() => {
-        if (t.selectionStart !== t.selectionEnd) return;
-        const nl = t.value.indexOf('\n', lineStart);
-        const lineEnd = nl === -1 ? t.value.length : nl;
-        const lineText = t.value.slice(lineStart, lineEnd);
-        // Re-verify against the current value (things may have changed meanwhile).
-        const gm = lineText.match(/^((?:    )+)(else|elif|except|finally)(?![A-Za-z_])/);
-        if (gm) {
-          const cutFrom = lineStart + gm[1].length - INDENT.length;
-          const caretAfter = cutFrom + gm[2].length + (lineText.length - gm[0].length);
-          try {
-            t.setSelectionRange(cutFrom, lineStart + gm[1].length);
-            if (!document.execCommand('delete')) {
-              throw new Error('delete rejected');
-            }
-            // execCommand leaves the caret at the removal point; restore it to
-            // the user's typing position (after keyword + whatever followed).
-            t.setSelectionRange(caretAfter, caretAfter);
-          } catch (err) {
-            const hadFocus = document.activeElement === t;
-            const all = t.value;
-            t.value = all.slice(0, cutFrom) + all.slice(cutFrom + INDENT.length);
-            t.selectionStart = t.selectionEnd = caretAfter;
-            if (!hadFocus) t.focus();
-          }
-          // Mark this line+keyword as corrected so follow-up keystrokes don't
-          // trigger a second pop on the same line.
-          recentDedent = {
-            lineStart,
-            expectPrefix: ' '.repeat(gm[1].length - INDENT.length) + gm[2],
-          };
+  if (/^ +(else|elif|except|finally)(?![A-Za-z_])/.test(typedPart)) {
+    setTimeout(() => {
+      if (t.selectionStart !== t.selectionEnd) return;
+      const nl = t.value.indexOf('\n', lineStart);
+      const lineEnd = nl === -1 ? t.value.length : nl;
+      // Re-verify against the current value (things may have changed meanwhile).
+      const lineText = t.value.slice(lineStart, lineEnd);
+      const gm = lineText.match(/^( +)(else|elif|except|finally)(?![A-Za-z_])/);
+      if (!gm) return;
+      // The user must still be on this line — Enter since then moved the
+      // caret elsewhere and the correction no longer applies.
+      if (t.selectionStart < lineStart || t.selectionStart > lineEnd) return;
+      const target = closerTargetIndent(t.value, lineStart);
+      if (target === null || target >= gm[1].length) return;   // aligned / nothing open
+      const cutFrom = lineStart + target;
+      const cut = gm[1].length - target;
+      const caretAfter = cutFrom + gm[2].length + (lineText.length - gm[0].length);
+      try {
+        t.setSelectionRange(cutFrom, lineStart + gm[1].length);
+        if (!document.execCommand('delete')) {
+          throw new Error('delete rejected');
         }
-        renderEditor();
-        syncScroll();
-      }, 0);
-    }
+        // execCommand leaves the caret at the removal point; restore it to
+        // the user's typing position (after keyword + whatever followed).
+        t.setSelectionRange(caretAfter, caretAfter);
+      } catch (err) {
+        const hadFocus = document.activeElement === t;
+        const all = t.value;
+        t.value = all.slice(0, cutFrom) + all.slice(cutFrom + cut);
+        t.selectionStart = t.selectionEnd = caretAfter;
+        if (!hadFocus) t.focus();
+      }
+      renderEditor();
+      syncScroll();
+    }, 0);
   }
   renderEditor();
   syncScroll();
@@ -230,7 +223,32 @@ els.textarea.addEventListener('input', () => {
 // Tab inserts 4 spaces; Shift+Tab outdents; Enter auto-indents smartly.
 const INDENT = '    ';   // one indentation level
 const DEDENT_LINE = /^\s*(return\b|pass\b|break\b|continue\b|raise\b)/;  // line closes one
-let recentDedent = null;  // remembers the last auto-dedent: { lineStart, expectPrefix }
+
+// Finds the header line an else/elif/except/finally just typed on the line
+// starting at `lineStart` should align with: scans the completed lines above
+// it and keeps a stack of open blocks. A statement at indent I sits outside
+// every block whose header is at indent >= I (those pop off the stack), and
+// a compound header ("kw …:", possibly commented) opens a new block.
+// Returns the deepest open header's indent, or null when no block is open.
+function closerTargetIndent(text, lineStart) {
+  const stack = [];   // open block headers, outermost first (indent widths)
+  let s = 0;
+  while (s < lineStart) {
+    let nl = text.indexOf('\n', s);
+    if (nl === -1 || nl > lineStart) nl = lineStart;
+    const line = text.slice(s, nl);
+    s = nl + 1;
+    if (!line.trim() || /^\s*#/.test(line)) continue;   // blank or comment
+    const indent = (line.match(/^ */) || [''])[0].length;
+    const body = line.slice(indent);
+    while (stack.length && stack[stack.length - 1] >= indent) stack.pop();
+    if (/^(?:async\s+)?(if|elif|else|for|while|try|except|finally|with|def|class|match|case)\b/.test(body)
+        && /:\s*(#.*)?$/.test(body)) {
+      stack.push(indent);
+    }
+  }
+  return stack.length ? stack[stack.length - 1] : null;
+}
 
 // Fallback for browsers without execCommand('insertText') support.
 function spliceInsert(t, start, end, text) {
