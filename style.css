@@ -290,6 +290,47 @@ textarea[readonly] {
 }
 #outputBody .err { color: #fca5a5; }
 
+/* Output panel tabs — only shown for runs where user code recursed. */
+.outtabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px 0;
+}
+.outtabs button {
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: #1f2937;
+  color: #9ca3af;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+}
+.outtabs button.active {
+  background: #111827;
+  color: #f9fafb;
+  border-color: #374151;
+}
+#treeBody {
+  flex: 1;
+  min-height: 80px;
+  overflow: auto;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre;
+  background: #111827;
+  color: #f9fafb;
+}
+/* [hidden] beats explicit flex/gap on these specific children */
+#outputBody[hidden], #treeBody[hidden], .outtabs[hidden] { display: none; }
+.tn-active { color: var(--orange); font-weight: 600; }
+.tn-done { color: #6ee7a0; }
+.tn-error { color: #fca5a5; font-weight: 600; }
+.tn-more { color: #9ca3af; font-style: italic; }
+
 #varsPanel { flex-shrink: 0; max-height: 45%; }
 #varsBody {
   overflow: auto;
