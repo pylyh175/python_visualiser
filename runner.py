@@ -218,14 +218,42 @@ def __viz_run(code):
     out = io.StringIO()
     state = {"count": 0}
     sticky = {}    # class-body names (methods etc.) kept visible after the body ends
+    # Recursion tree data: each user-frame call gets a unique id (kept alive
+    # in `frames` until it returns, so a recycled address can never be
+    # confused with an earlier call at the same address).
+    frames = {}        # live user frame object -> call id
+    call_info = {}     # call id -> {"fn": ..., "args": {...}} captured at the call event
+    call_count = 0     # user-code calls seen so far
+    MAX_CALLS = 5000   # safety stop: ids/labels stop being recorded past this
+    pending_ret = []   # returns since the last recorded step (resolve moments)
     t0 = time.monotonic()
 
     class VizStop(Exception):
         pass
 
     def tracer(frame, event, arg):
+        nonlocal call_count, pending_ret
         if frame.f_code.co_filename != filename:
             return None
+        if event == "call":
+            # Snapshot the call-time arguments now, before the body runs.
+            call_count += 1
+            if call_count > MAX_CALLS:
+                return tracer
+            fid = call_count
+            frames[frame] = fid
+            args = {}
+            try:
+                for k, v in frame.f_locals.items():
+                    if not k.startswith("__"):
+                        try:
+                            args[k] = __viz_make_safe(v)
+                        except Exception:
+                            args[k] = "<?>"
+            except Exception:
+                pass
+            call_info[fid] = {"fn": frame.f_code.co_name, "args": args}
+            return tracer
         if event == "line":
             state["count"] += 1
             if state["count"] > STEP_LIMIT or time.monotonic() - t0 > TIME_LIMIT:
@@ -237,12 +265,34 @@ def __viz_run(code):
                 snap = __viz_locals(frame, sticky)
             except Exception:
                 pass
-            steps.append({"line": frame.f_lineno, "locals": snap, "outLen": out.tell()})
+            # Call stack: chain of user-code frames, outermost (module) first.
+            # Stops short when calls went past the id cap — the tree then
+            # shows a "+N more calls" summary instead of exact structure.
+            chain = []
+            fr = frame
+            while fr is not None and fr.f_code.co_filename == filename:
+                fid = frames.get(fr)
+                if fid is None:
+                    if fr.f_code.co_name == "<module>":
+                        fid = 0
+                        frames[fr] = 0
+                    else:
+                        break
+                info = call_info.get(fid) or {"fn": fr.f_code.co_name, "args": {}}
+                chain.append({"id": fid, "fn": info["fn"], "args": info["args"]})
+                fr = fr.f_back
+            chain.reverse()
+            step = {"line": frame.f_lineno, "locals": snap, "outLen": out.tell(),
+                    "stack": chain}
+            if pending_ret:
+                step["ret"] = pending_ret
+                pending_ret = []
+            steps.append(step)
         elif event == "return":
+            loc = frame.f_locals
             # A class body just finished: capture its complete namespace —
             # the last def line never gets a later line event to do it.
             # (Regular function returns have no __qualname__ and are ignored.)
-            loc = frame.f_locals
             if "__qualname__" in loc:
                 for name, value in loc.items():
                     if not name.startswith("__") and not isinstance(value, types.ModuleType):
@@ -250,6 +300,15 @@ def __viz_run(code):
                             sticky[name] = __viz_make_safe(value)
                         except Exception:
                             sticky[name] = "<?>"
+            # Record the call's return value: the node resolves on the step
+            # where the caller resumes (i.e. the next recorded line event).
+            fid = frames.pop(frame, None)
+            if fid is not None and fid != 0:   # the module frame has no tree node
+                try:
+                    value = __viz_make_safe(arg)
+                except Exception:
+                    value = "<?>"
+                pending_ret.append({"id": fid, "value": value})
         return tracer
 
     g = {"__name__": "__main__", "__builtins__": builtins}
@@ -328,7 +387,13 @@ def __viz_run(code):
                 except Exception:
                     pass
         steps.append({"line": final_line, "locals": final_locals,
-                      "outLen": len(output), "finished": True})
+                      "outLen": len(output), "finished": True,
+                      "stack": steps[-1].get("stack", [])})
+        # Returns still pending at the end (e.g. the outermost call of a
+        # recursion — no line event follows them) resolve on this step.
+        if pending_ret:
+            steps[-1]["ret"] = pending_ret
+            pending_ret = []
 
     result = {
         "steps": steps,
