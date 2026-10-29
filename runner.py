@@ -225,14 +225,15 @@ def __viz_run(code):
     call_info = {}     # call id -> {"fn": ..., "args": {...}} captured at the call event
     call_count = 0     # user-code calls seen so far
     MAX_CALLS = 5000   # safety stop: ids/labels stop being recorded past this
-    pending_ret = []   # returns since the last recorded step (resolve moments)
+    pending_ret = []   # returns not yet resolved on a recorded step (normally ≤1: the next return step resolves them)
+    unwinding = False  # an exception is propagating; frame exits are not returns
     t0 = time.monotonic()
 
     class VizStop(Exception):
         pass
 
     def tracer(frame, event, arg):
-        nonlocal call_count, pending_ret
+        nonlocal call_count, pending_ret, unwinding
         if frame.f_code.co_filename != filename:
             return None
         if event == "call":
@@ -255,6 +256,7 @@ def __viz_run(code):
             call_info[fid] = {"fn": frame.f_code.co_name, "args": args}
             return tracer
         if event == "line":
+            unwinding = False   # execution resumed (e.g. an except handler caught it)
             state["count"] += 1
             if state["count"] > STEP_LIMIT or time.monotonic() - t0 > TIME_LIMIT:
                 raise VizStop()
@@ -288,6 +290,11 @@ def __viz_run(code):
                 step["ret"] = pending_ret
                 pending_ret = []
             steps.append(step)
+        elif event == "exception":
+            # The propagating exception will unwind frames, each exiting with
+            # a 'return' event and no value — those returns must not resolve
+            # tree nodes ("→ None" would lie) nor produce steps.
+            unwinding = True
         elif event == "return":
             loc = frame.f_locals
             # A class body just finished: capture its complete namespace —
@@ -300,15 +307,58 @@ def __viz_run(code):
                             sticky[name] = __viz_make_safe(value)
                         except Exception:
                             sticky[name] = "<?>"
-            # Record the call's return value: the node resolves on the step
-            # where the caller resumes (i.e. the next recorded line event).
+            # Record the call's return value, and make the return itself a
+            # recorded step: after a nested call returns, the caller resumes
+            # on the *same* line (no line event fires there), so single-chain
+            # recursion would otherwise freeze on its descent and resolve the
+            # entire tree on the final step. On a return step the returning
+            # frame is still the stack top; its own and any other pending
+            # returns resolve right here, so the tree flips the callee to its
+            # value while the consuming caller stays active — the combine
+            # moment, level by level, for every recursion shape.
             fid = frames.pop(frame, None)
-            if fid is not None and fid != 0:   # the module frame has no tree node
+            # The module frame has rets recorded (its id ≠ 0 — the call event
+            # numbered it) but the renderer ignores <module> nodes; unwound
+            # frames (exception exit) record nothing at all.
+            if fid is not None and fid != 0 and not unwinding:
                 try:
                     value = __viz_make_safe(arg)
                 except Exception:
                     value = "<?>"
                 pending_ret.append({"id": fid, "value": value})
+                state["count"] += 1
+                if state["count"] > STEP_LIMIT or time.monotonic() - t0 > TIME_LIMIT:
+                    raise VizStop()
+                snap = {}
+                try:
+                    snap = __viz_locals(frame, sticky)
+                except Exception:
+                    pass
+                # Call stack active at this instant (chain of user frames,
+                # outermost first). fid was popped above, so re-insert the
+                # returning frame's own id while walking its chain.
+                chain = []
+                fr = frame
+                while fr is not None and fr.f_code.co_filename == filename:
+                    if fr is frame:
+                        chain_fid = fid          # the frame that just resolved
+                    else:
+                        chain_fid = frames.get(fr)
+                    if chain_fid is None:
+                        if fr.f_code.co_name == "<module>":
+                            chain_fid = 0
+                        else:
+                            break
+                    info = call_info.get(chain_fid) or {"fn": fr.f_code.co_name, "args": {}}
+                    chain.append({"id": chain_fid, "fn": info["fn"], "args": info["args"]})
+                    fr = fr.f_back
+                chain.reverse()
+                step = {"line": frame.f_lineno, "locals": snap, "outLen": out.tell(),
+                        "stack": chain, "retStep": True}
+                if pending_ret:
+                    step["ret"] = pending_ret
+                    pending_ret = []
+                steps.append(step)
         return tracer
 
     g = {"__name__": "__main__", "__builtins__": builtins}
