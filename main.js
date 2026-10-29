@@ -247,28 +247,123 @@ els.textarea.addEventListener('input', () => {
 const INDENT = '    ';   // one indentation level
 const DEDENT_LINE = /^\s*(return\b|pass\b|break\b|continue\b|raise\b)/;  // line closes one
 
-// Finds the header line an else/elif/except/finally just typed on the line
-// starting at `lineStart` should align with: scans the completed lines above
-// it and keeps a stack of open blocks. A statement at indent I sits outside
-// every block whose header is at indent >= I (those pop off the stack), and
-// a compound header ("kw …:", possibly commented) opens a new block.
-// Returns the deepest open header's indent, or null when no block is open.
-function closerTargetIndent(text, lineStart) {
-  const stack = [];   // open block headers, outermost first (indent widths)
+/* ---------- lightweight Python lexical scanner ---------- */
+// The block heuristics must never react to colons, keywords, or brackets
+// inside strings (incl. triple-quoted), comments, or bracketed
+// continuations — that whole bug class misindents nested if/else after a
+// dict literal, a multi-line header, or a docstring. pyScanLine walks one
+// line, carrying bracket depth / string state across lines, and reports
+// facts about the statement at its outer level only. It is a heuristic
+// scanner, not a full tokenizer; it covers what this editor realistically
+// holds.
+const COMPOUND_KW = /^(?:\s*)(?:async\s+)?(?:if|elif|else|for|while|try|except|finally|with|def|class|match|case)\b/;
+
+function pyScanLine(line, st) {
+  // st = { depth, triple } — persistent, mutated in place.
+  // Returns { kw, endsColon, backslash, openStr }: statement facts; openStr
+  // means a single-line quote was left open (mid-typing state).
+  const kw = st.depth === 0 && !st.triple && COMPOUND_KW.test(line);
+  let endsColon = false;
+  let backslash = false;
+  const hold = { q: null };   // single-line string state; never persists
+  let i = 0;
+  let codeEnd = line.length;
+  while (i < line.length) {
+    if (st.triple) {
+      if (line.startsWith(st.triple, i)) { st.triple = null; i += 3; }
+      else i += line[i] === '\\' ? 2 : 1;   // escapes inside triple-quotes
+      continue;
+    }
+    const c = line[i];
+    if (hold.q) {
+      if (c === '\\') i += 2;
+      else { if (c === hold.q) hold.q = null; i += 1; }
+      continue;
+    }
+    if (c === '#') { codeEnd = i; break; }   // comment: inert tail
+    if (c === '"' || c === "'") {
+      if (line.startsWith(c + c + c, i)) { st.triple = c.repeat(3); i += 3; }
+      else { hold.q = c; i += 1; }
+      continue;
+    }
+    if (c === '(' || c === '[' || c === '{') st.depth += 1;
+    else if (c === ')' || c === ']' || c === '}') st.depth = Math.max(0, st.depth - 1);
+    i += 1;
+  }
+  if (!st.triple && !hold.q) {   // tail is real code, not part of a string
+    const code = line.slice(0, codeEnd).trimEnd();
+    const last = code.length ? code[code.length - 1] : '';
+    endsColon = last === ':' && st.depth === 0;
+    backslash = last === '\\';
+  }
+  return { kw, endsColon, backslash, openStr: hold.q !== null };
+}
+
+// Scanner state standing before the line starting at `lineStart` (built
+// from every earlier line) plus whether that statement was still open —
+// i.e. the line at lineStart is a continuation.
+function pyScanTo(text, lineStart) {
+  const st = { depth: 0, triple: null, pendingHeader: -1 };
+  let open = false;
   let s = 0;
   while (s < lineStart) {
     let nl = text.indexOf('\n', s);
     if (nl === -1 || nl > lineStart) nl = lineStart;
     const line = text.slice(s, nl);
     s = nl + 1;
-    if (!line.trim() || /^\s*#/.test(line)) continue;   // blank or comment
-    const indent = (line.match(/^ */) || [''])[0].length;
-    const body = line.slice(indent);
-    while (stack.length && stack[stack.length - 1] >= indent) stack.pop();
-    if (/^(?:async\s+)?(if|elif|else|for|while|try|except|finally|with|def|class|match|case)\b/.test(body)
-        && /:\s*(#.*)?$/.test(body)) {
-      stack.push(indent);
+    const info = pyScanLine(line, st);
+    if (open || st.pendingHeader >= 0) {
+      // Scan is header-tracking only here: a completed multi-line header
+      // keeps its indent in st.pendingHeader for the caller.
+      if (st.depth === 0 && !st.triple && !info.backslash) {
+        if (!info.endsColon) st.pendingHeader = -1;
+      }
+    } else if (info.kw && !info.endsColon) {
+      st.pendingHeader = (line.match(/^ */))[0].length;
+    } else {
+      st.pendingHeader = -1;
     }
+    open = st.depth > 0 || st.triple !== null || info.backslash;
+  }
+  return { st, open };
+}
+
+// Finds the header line an else/elif/except/finally just typed on the line
+// starting at `lineStart` should align with: scans the completed lines
+// above it, keeping a stack of open blocks. Continuation lines (inside
+// brackets, triple-strings, or after a trailing backslash) neither pop nor
+// push — but they can COMPLETE a pending multi-line header, when its final
+// colon lands at depth 0 (e.g. "b):" closing "if (a and"). Returns the
+// deepest open header's indent, or null when no block is open.
+function closerTargetIndent(text, lineStart) {
+  const stack = [];
+  const st = { depth: 0, triple: null };
+  let open = false;
+  let pendingHeader = -1;
+  let s = 0;
+  while (s < lineStart) {
+    let nl = text.indexOf('\n', s);
+    if (nl === -1 || nl > lineStart) nl = lineStart;
+    const line = text.slice(s, nl);
+    s = nl + 1;
+    const cont = open || pendingHeader >= 0;
+    const info = pyScanLine(line, st);
+    open = st.depth > 0 || st.triple !== null || info.backslash;
+    if (!line.trim() || /^\s*#/.test(line)) continue;   // blank or comment
+    if (cont) {
+      if (st.depth === 0 && !st.triple && !info.backslash) {
+        if (info.endsColon && pendingHeader >= 0) stack.push(pendingHeader);
+        pendingHeader = -1;
+      }
+      continue;
+    }
+    const indent = (line.match(/^ */) || [''])[0].length;
+    // A statement at this indent sits outside every block whose header is
+    // at the same or deeper indent — those pop off the stack.
+    while (stack.length && stack[stack.length - 1] >= indent) stack.pop();
+    if (info.kw && info.endsColon) stack.push(indent);
+    else if (info.kw && open) pendingHeader = indent;
+    else pendingHeader = -1;
   }
   return stack.length ? stack[stack.length - 1] : null;
 }
@@ -363,9 +458,24 @@ els.textarea.addEventListener('keydown', (e) => {
 
     let nextIndent = indent;
     let replaceFrom = pos;               // where the inserted text replaces from
-    if (!content && indent.length > 0) {
-      // Blank auto-indented line + Enter = exit the block: the caret moves to
-      // column 0 of this line, no empty line is left behind.
+    // Does the caret line complete a pending multi-line header? (its colon
+    // just landed at depth 0; st.pendingHeader still holds that header's
+    // indent) — e.g. Enter right after the "        b):" that closes a
+    // multi-line "if (a and" header opens the block body at that indent.
+    const completesHeader = st.pendingHeader >= 0 && info.endsColon
+      && st.depth === 0 && !st.triple && !info.backslash && !info.openStr
+      && !info.kw;
+    // Lexical state before/inside the caret line: inside brackets, a string
+    // (incl. triple), or a trailing-\ continuation changes every decision —
+    // an Enter there is just a line split: no block is opened nor exited.
+    const scan = pyScanTo(t.value, lineStart);
+    const st = scan.st;
+    const info = pyScanLine(curLine, st);
+    const openStatement = scan.open || st.depth > 0 || st.triple !== null
+      || info.backslash || info.openStr;    if (!content && indent.length > 0 && !openStatement) {
+      // Blank auto-indented line + Enter = exit the block: the caret moves
+      // to column 0 of this line, no empty line is left behind. (Blank lines
+      // inside brackets or a docstring are not block exits — plain splits.)
       t.setSelectionRange(lineStart, pos);
       if (document.execCommand && document.execCommand('delete')) {
         // caret now sits at lineStart (column 0); nothing left to insert
@@ -376,8 +486,13 @@ els.textarea.addEventListener('keydown', (e) => {
       requestAnimationFrame(syncScroll);
       return;
     }
-    if (content.endsWith(':')) {
-      // Line opens a block (for/while/if/elif/else/def/class/try/except/finally/with)
+    if (completesHeader) {
+      nextIndent = ' '.repeat(st.pendingHeader) + INDENT;
+    } else if (openStatement) {
+      // Line split inside a bracket/string/continuation: keep the level.
+    } else if (info.kw && info.endsColon) {
+      // A compound header (if/for/while/def/try/with … ending in ":" outside
+      // all brackets and strings) opens a block.
       nextIndent = indent + INDENT;
     } else if (DEDENT_LINE.test(content)) {
       // return/pass/break/continue/raise: back out one level.
