@@ -158,6 +158,10 @@ function syncScroll() {
 els.textarea.addEventListener('scroll', syncScroll);
 els.textarea.addEventListener('input', () => {
   const t = els.textarea;
+  // First real modification while unlocked (after a failed run): back to the
+  // initial state — error display and highlights go. Locked editors never
+  // reach this, so a successful run's trace is safe to inspect.
+  if (!locked && (programError || stoppedRun || steps.length)) resetRun();
   // Code gone (or whitespace only): the previous run's trace refers to text
   // that no longer exists — clear it so stale steps, output, and error
   // highlighting don't linger over an empty editor.
@@ -550,6 +554,7 @@ els.visualize.addEventListener('click', async () => {
   applyLock();
   els.status.textContent = 'Executing…';
   els.status.classList.remove('ready');
+  let failed = false;
   try {
     pyodide.globals.set('__viz_code', code);
     const json = await pyodide.runPythonAsync('__viz_run(__viz_code)');
@@ -563,12 +568,14 @@ els.visualize.addEventListener('click', async () => {
     stoppedRun = !!result.stopped;
 
     if (result.error) {
+      failed = true;
       programError = { text: result.error, line: result.errorLine };
       if (!result.errorLine || !steps.length) {
         // A syntax error before anything ran: no stepping is possible.
         steps = [];
       }
     }
+    if (stoppedRun) failed = true;
     if (!steps.length) {
       render();
       scrollToLine(programError && programError.line);
@@ -585,11 +592,20 @@ els.visualize.addEventListener('click', async () => {
     idx = 0;
     render();
   } catch (err) {
+    failed = true;
     programError = { text: 'Internal error: ' + (err && err.message || err), line: null };
     steps = [];
     render();
   } finally {
     runInProgress = false;
+    // A failed run (syntax/runtime/internal error or a limit stop) drops the
+    // user straight into edit mode, but KEEPS the error display — the red
+    // buggy-line highlight, the error in the output panel, and the trace
+    // stay until the user actually starts editing (reset then, in the input
+    // listener) or clicks Edit. Successful runs stay locked as before.
+    if (failed) {
+      locked = false;
+    }
     syncVisualizeEnabled();
     applyLock();
     els.status.textContent = 'Python ready ✓';
