@@ -190,6 +190,11 @@ function syncScroll() {
 }
 
 els.textarea.addEventListener('scroll', syncScroll);
+// Caret-follow triggers on caret movement only: clicks and keyboard
+// navigation here, edits via the 'input' listener below. Scroll alone is
+// deliberately never wired — manual scrolling must not be fought.
+els.textarea.addEventListener('click', scheduleCaretFollow);
+els.textarea.addEventListener('keyup', scheduleCaretFollow);
 els.textarea.addEventListener('input', () => {
   const t = els.textarea;
   // First real modification while unlocked (after a failed run): back to the
@@ -201,6 +206,7 @@ els.textarea.addEventListener('input', () => {
   // highlighting don't linger over an empty editor.
   if (!t.value.trim()) resetRun();
   syncVisualizeEnabled();
+  scheduleCaretFollow();
   // Smart dedent: typing else/elif/except/finally at the start of an
   // indented line usually means the keyword closes a block. A blind
   // one-level outdent misaligns it (e.g. an else under a nested if was
@@ -248,6 +254,7 @@ els.textarea.addEventListener('input', () => {
       }
       renderEditor();
       syncScroll();
+      scheduleCaretFollow();   // smart dedent also moved the caret
     }, 0);
   }
   renderEditor();
@@ -414,11 +421,13 @@ els.textarea.addEventListener('keydown', (e) => {
       t.selectionEnd = end + offset;
       renderEditor();
       syncScroll();
+      scheduleCaretFollow();
     } else {
       t.value = t.value.slice(0, start) + INDENT + t.value.slice(end);
       t.selectionStart = t.selectionEnd = start + INDENT.length;
       renderEditor();
       syncScroll();
+      scheduleCaretFollow();
     }
     return;
   }
@@ -453,6 +462,7 @@ els.textarea.addEventListener('keydown', (e) => {
       if (!hadFocus) t.focus();
       renderEditor();
       syncScroll();
+      scheduleCaretFollow();
     }
     // execCommand('delete') above fires 'input' which re-renders.
     return;
@@ -491,11 +501,11 @@ els.textarea.addEventListener('keydown', (e) => {
       t.setSelectionRange(lineStart, pos);
       if (document.execCommand && document.execCommand('delete')) {
         // caret now sits at lineStart (column 0); nothing left to insert
-        requestAnimationFrame(syncScroll);
+        scheduleCaretFollow();
         return;
       }
       spliceInsert(t, lineStart, pos, '');
-      requestAnimationFrame(syncScroll);
+      scheduleCaretFollow();
       return;
     }
     if (completesHeader) {
@@ -522,7 +532,7 @@ els.textarea.addEventListener('keydown', (e) => {
     }
     // The 'input' event fired by execCommand re-renders the mirror; make sure the
     // view is scrolled if this code fell outside the visible area.
-    requestAnimationFrame(syncScroll);
+    scheduleCaretFollow();
   }
 });
 
@@ -649,6 +659,95 @@ function ensureStepVisible() {
   const lo = Math.max(0, nxt.offsetTop - 22);
   t.scrollTop = Math.max(lo, Math.min(want, t.scrollHeight - t.clientHeight));
   syncScroll();
+}
+
+/* ---------- keep the caret inside the view while editing ---------- */
+
+// Monospace advance of one character cell (measured once, lazily). Both
+// editor layers share one font and tab-size, so text coordinates are exact
+// for both vertical rows and horizontal columns.
+let caretCellW = null;
+function caretCellWidth() {
+  if (caretCellW !== null) return caretCellW;
+  try {
+    const probe = document.createElement('span');
+    probe.textContent = '0'.repeat(64);
+    const cs = getComputedStyle(els.mirror);
+    probe.style.cssText = 'position:absolute;visibility:hidden;top:-9999px;left:0;'
+      + 'white-space:pre;font-family:' + cs.fontFamily + ';font-size:' + cs.fontSize;
+    document.body.appendChild(probe);
+    caretCellW = probe.getBoundingClientRect().width / 64;
+    probe.remove();
+  } catch (err) {
+    caretCellW = 0;
+  }
+  if (!caretCellW) caretCellW = 8.4;   // sane monospace default at 14px
+  return caretCellW;
+}
+
+// Caret's horizontal position in content coordinates. Each non-tab
+// character advances one cell; a tab jumps to the next 4-cell stop
+// (tab-size 4, as rendered).
+function caretColumnX(linePrefix) {
+  const cw = caretCellWidth();
+  let x = 0;
+  for (const ch of linePrefix) {
+    if (ch === '\t') x = (Math.floor(x / (cw * 4)) + 1) * cw * 4;
+    else x += cw;
+  }
+  return x;
+}
+
+// Follow the caret after it moves (typing, Enter, click, arrow keys):
+// scroll the editor minimally when the caret left the visible area, with
+// one line-height of margin so it does not sit glued to an edge. Only
+// caret-movement events reach this — wheel/scrollbar scrolling alone is
+// never fought — and locked playback keeps its own tracking
+// (ensureStepVisible), so the two behaviors cannot fight each other.
+function keepCaretVisible() {
+  const t = els.textarea;
+  if (locked || document.activeElement !== t) return;
+  const pos = t.selectionStart;
+  const start = t.value.lastIndexOf('\n', pos - 1) + 1;
+  const line = t.value.slice(0, start).split('\n').length;
+  const row = rowAt(line);
+  if (!row) return;
+  const margin = 22;   // one line of breathing room whenever a scroll happens
+  let changed = false;
+  const top = row.offsetTop;
+  const bot = top + (row.offsetHeight || margin);
+  if (top < t.scrollTop) {
+    t.scrollTop = Math.max(0, top - margin);
+    changed = true;
+  } else if (bot > t.scrollTop + t.clientHeight) {
+    t.scrollTop = Math.min(t.scrollHeight - t.clientHeight, bot + margin - t.clientHeight);
+    changed = true;
+  }
+  // Horizontal: the same policy along the caret column (long lines and
+  // tabs are already priced in by caretColumnX).
+  const x = caretColumnX(t.value.slice(start, pos));
+  const cw = caretCellWidth();
+  if (x < t.scrollLeft) {
+    t.scrollLeft = Math.max(0, x - margin);
+    changed = true;
+  } else if (x + cw > t.scrollLeft + t.clientWidth) {
+    t.scrollLeft = Math.min(t.scrollWidth - t.clientWidth, x + cw + margin - t.clientWidth);
+    changed = true;
+  }
+  if (changed) syncScroll();
+}
+
+// One rAF pass after caret movement: glue the mirror first (a renderEditor
+// rebuild can reset its scroll, see syncSpacerSize), then follow the caret.
+let caretFollowQueued = false;
+function scheduleCaretFollow() {
+  if (caretFollowQueued) return;
+  caretFollowQueued = true;
+  requestAnimationFrame(() => {
+    caretFollowQueued = false;
+    syncScroll();
+    keepCaretVisible();
+  });
 }
 
 els.first.addEventListener('click', () => setIdx(0));
