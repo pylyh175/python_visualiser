@@ -97,30 +97,42 @@ function renderEditor() {
   // comes from programError; on a runtime error / limit stop it is the last
   // step, but only while that step is the one being viewed (stepping back
   // returns to the normal green/orange playback colours).
+  // Steps are recorded on the tracer's line events, i.e. immediately
+  // *before* the event's line runs. At step idx the line about to execute
+  // is steps[idx].line (orange "next" arrow) and the line that just
+  // executed is the previous step's, steps[idx-1].line (green arrow). The
+  // first step has nothing executed yet, so only the next-line arrow
+  // shows there. The runner's synthetic final step repeats the last real
+  // line, so at the end the green arrow lands on that line and nothing is
+  // left pending. Error/limit final step: red buggy-line marker instead.
   const atErrorStep = steps.length
     ? idx === steps.length - 1 && (!!programError || stoppedRun)
     : !!programError && !!programError.line;
-  const currentLine = steps.length
-    ? (idx === 0 && !atErrorStep ? null : steps[idx].line)
-    : (programError && programError.line) || null;
-  const hlClass = atErrorStep ? 'hl-error' : 'hl-current';
-  const arrowClass = atErrorStep ? 'arrow-error' : 'arrow-prev';
-  // On the first playback step nothing has executed yet, so the step's
-  // line is the *next* line to be executed — it gets the next-line arrow
-  // instead of the "line that just executed" arrow. The error marker wins
-  // when this one-step trace failed (red buggy-line arrow stays).
-  const nextLine = steps.length && idx === 0 && !atErrorStep
-    ? steps[0].line
-    : (idx + 1 < steps.length ? steps[idx + 1].line : null);
+  let greenLine = null;
+  let nextLine = null;
+  let redLine = null;
+  if (steps.length) {
+    if (!atErrorStep) {
+      greenLine = idx > 0 ? steps[idx - 1].line : null;
+      nextLine = steps[idx].line;
+    } else {
+      redLine = steps[idx].line;
+    }
+  } else if (programError && programError.line) {
+    redLine = programError.line;
+  }
 
   const parts = [];
   for (let i = 0; i < lines.length; i++) {
     const n = i + 1;
     let cls = 'row';
     let arrow = '';
-    if (n === currentLine) {
-      cls += ' ' + hlClass;
-      arrow = `<span class="arrow ${arrowClass}">▶</span>`;
+    if (n === redLine) {
+      cls += ' hl-error';
+      arrow = '<span class="arrow arrow-error">▶</span>';
+    } else if (n === greenLine) {
+      cls += ' hl-current';
+      arrow = '<span class="arrow arrow-prev">▶</span>';
     } else if (n === nextLine) {
       cls += ' hl-next';
       arrow = '<span class="arrow arrow-next">▶</span>';
