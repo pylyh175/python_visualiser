@@ -101,11 +101,17 @@ function renderEditor() {
     ? idx === steps.length - 1 && (!!programError || stoppedRun)
     : !!programError && !!programError.line;
   const currentLine = steps.length
-    ? steps[idx].line
+    ? (idx === 0 && !atErrorStep ? null : steps[idx].line)
     : (programError && programError.line) || null;
   const hlClass = atErrorStep ? 'hl-error' : 'hl-current';
   const arrowClass = atErrorStep ? 'arrow-error' : 'arrow-prev';
-  const nextLine = idx + 1 < steps.length ? steps[idx + 1].line : null;
+  // On the first playback step nothing has executed yet, so the step's
+  // line is the *next* line to be executed — it gets the next-line arrow
+  // instead of the "line that just executed" arrow. The error marker wins
+  // when this one-step trace failed (red buggy-line arrow stays).
+  const nextLine = steps.length && idx === 0 && !atErrorStep
+    ? steps[0].line
+    : (idx + 1 < steps.length ? steps[idx + 1].line : null);
 
   const parts = [];
   for (let i = 0; i < lines.length; i++) {
