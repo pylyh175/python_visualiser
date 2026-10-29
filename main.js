@@ -458,13 +458,6 @@ els.textarea.addEventListener('keydown', (e) => {
 
     let nextIndent = indent;
     let replaceFrom = pos;               // where the inserted text replaces from
-    // Does the caret line complete a pending multi-line header? (its colon
-    // just landed at depth 0; st.pendingHeader still holds that header's
-    // indent) — e.g. Enter right after the "        b):" that closes a
-    // multi-line "if (a and" header opens the block body at that indent.
-    const completesHeader = st.pendingHeader >= 0 && info.endsColon
-      && st.depth === 0 && !st.triple && !info.backslash && !info.openStr
-      && !info.kw;
     // Lexical state before/inside the caret line: inside brackets, a string
     // (incl. triple), or a trailing-\ continuation changes every decision —
     // an Enter there is just a line split: no block is opened nor exited.
@@ -472,7 +465,15 @@ els.textarea.addEventListener('keydown', (e) => {
     const st = scan.st;
     const info = pyScanLine(curLine, st);
     const openStatement = scan.open || st.depth > 0 || st.triple !== null
-      || info.backslash || info.openStr;    if (!content && indent.length > 0 && !openStatement) {
+      || info.backslash || info.openStr;
+    // Does the caret line complete a pending multi-line header? (its colon
+    // just landed at depth 0; st.pendingHeader still holds that header's
+    // indent) — e.g. Enter right after the "        b):" that closes a
+    // multi-line "if (a and" header opens the block body at that indent.
+    const completesHeader = st.pendingHeader >= 0 && info.endsColon
+      && st.depth === 0 && !st.triple && !info.backslash && !info.openStr
+      && !info.kw;
+    if (!content && indent.length > 0 && !openStatement) {
       // Blank auto-indented line + Enter = exit the block: the caret moves
       // to column 0 of this line, no empty line is left behind. (Blank lines
       // inside brackets or a docstring are not block exits — plain splits.)
