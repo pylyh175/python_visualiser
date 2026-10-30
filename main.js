@@ -712,15 +712,14 @@ function keepCaretVisible() {
   const line = t.value.slice(0, start).split('\n').length;
   const row = rowAt(line);
   if (!row) return;
-  const margin = 22;   // one line of breathing room whenever a scroll happens
   let changed = false;
   const top = row.offsetTop;
-  const bot = top + (row.offsetHeight || margin);
+  const bot = top + (row.offsetHeight);
   if (top < t.scrollTop) {
-    t.scrollTop = Math.max(0, top - margin);
+    t.scrollTop = Math.max(0, top);
     changed = true;
   } else if (bot > t.scrollTop + t.clientHeight) {
-    t.scrollTop = Math.min(t.scrollHeight - t.clientHeight, bot + margin - t.clientHeight);
+    t.scrollTop = Math.min(t.scrollHeight - t.clientHeight, bot - t.clientHeight);
     changed = true;
   }
   // Horizontal: the same policy along the caret column (long lines and
@@ -728,10 +727,10 @@ function keepCaretVisible() {
   const x = caretColumnX(t.value.slice(start, pos));
   const cw = caretCellWidth();
   if (x < t.scrollLeft) {
-    t.scrollLeft = Math.max(0, x - margin);
+    t.scrollLeft = Math.max(0, x);
     changed = true;
   } else if (x + cw > t.scrollLeft + t.clientWidth) {
-    t.scrollLeft = Math.min(t.scrollWidth - t.clientWidth, x + cw + margin - t.clientWidth);
+    t.scrollLeft = Math.min(t.scrollWidth - t.clientWidth, x + cw - t.clientWidth);
     changed = true;
   }
   if (changed) syncScroll();
