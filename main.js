@@ -958,7 +958,11 @@ async function init() {
     return;
   }
   try {
-    pyodide = await loadPyodide();
+    // WASM heap headroom: Pyodide/Emscripten's small default heap can be tight
+    // for deep recursion + big variable snapshots; give the runtime 4 MB.
+    pyodide = await loadPyodide({
+      totalMemory: 4 * 1024 * 1024,   // 4 MB heap for the WASM runtime
+    });
     await pyodide.runPythonAsync(runnerSource);
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
