@@ -47,6 +47,7 @@ let stoppedRun = false;
 let programOutput = '';
 let runInProgress = false;  // a Visualize run is currently executing
 let locked = false;         // editor locked until ✎ Edit is clicked
+let awaitingEdit = false;   // terminal run state: trace kept, editor unlocked, waiting for the first real edit to clear it
 const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 
 // Visualize is only meaningful with code on the editor, and never while a
@@ -544,11 +545,14 @@ function render() {
   renderEditor();
   const total = steps.length;
   els.stepLabel.textContent = total ? `Step ${idx + 1} / ${total}` : 'Step 0 / 0';
-  els.first.disabled = els.prev.disabled = (idx <= 0);
-  els.next.disabled = els.last.disabled = (idx >= total - 1);
+  // Playback is live only while a run is actually playing: with no steps (fresh
+  // state) or in the terminal awaiting-edit state, the controls are disabled.
+  const playbackOn = steps.length > 0 && !awaitingEdit;
+  els.first.disabled = els.prev.disabled = (idx <= 0 || !playbackOn);
+  els.next.disabled = els.last.disabled = (idx >= total - 1 || !playbackOn);
   els.slider.max = String(Math.max(0, total - 1));
   els.slider.value = String(idx);
-  els.slider.disabled = !total;
+  els.slider.disabled = !playbackOn;
   renderOutput();
   renderVars();
   renderTree();
@@ -618,7 +622,15 @@ function fmtValue(v) {
 
 function setIdx(n) {
   if (!steps.length) return;
+  if (awaitingEdit) return;   // terminal state: playback frozen until an edit resets
   idx = Math.max(0, Math.min(n, steps.length - 1));
+  // A successful run that reached its final step hands the editor back: unlock
+  // and wait for the user's first real edit to clear the trace (design doc
+  // 2026-10-30-final-step-edit-design.md, grilled Q1–Q5).
+  if (idx === steps.length - 1 && steps[idx].finished && !programError && !stoppedRun) {
+    if (locked) { locked = false; applyLock(); }
+    awaitingEdit = true;
+  }
   render();
 }
 
@@ -934,6 +946,7 @@ function resetRun() {
   stoppedRun = false;
   idx = 0;
   programOutput = '';
+  awaitingEdit = false;
   outTab = 'out'; userTab = false; treeAnnounced = false;
   render();
 }
@@ -1018,6 +1031,10 @@ els.visualize.addEventListener('click', async () => {
     // An error or a limit stop lands straight on the last executed line —
     // the buggy line for runtime errors — instead of the first step.
     if (programError || stoppedRun) {
+      // Terminal state (runtime error / step-time limit stop): the editor is
+      // already auto-unlocked via the failed flag; freeze playback controls
+      // and wait for the first real edit to clear the trace (design doc).
+      if (steps.length) awaitingEdit = true;
       idx = steps.length - 1;
       render();
       scrollToLine(steps[idx].line);
