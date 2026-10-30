@@ -768,7 +768,7 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------- recursion tree (Recursion tab in the output panel) ---------- */
 
-const TREE_NODE_CAP = 80;   // nodes drawn; overflow becomes a summary row
+const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary row
 
 let outTab = 'out';          // active output-panel tab: 'out' | 'tree'
 let userTab = false;         // the user picked a tab — keep it for this run
