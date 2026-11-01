@@ -107,6 +107,35 @@ body.resizing {
   user-select: none;
   -webkit-user-select: none;
 }
+
+/* ---------- draggable divider between variables and output ---------- */
+#vdivider {
+  flex: 0 0 2px;
+  position: relative;
+  cursor: row-resize;
+  touch-action: none;   /* so touch dragging isn't hijacked by scrolling */
+}
+
+#vdivider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: var(--border);
+}
+
+#vdivider:hover::before,
+#vdivider.dragging::before { background: var(--accent); }
+body.resizing-v {
+  cursor: row-resize;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 button {
   font: inherit;
   font-size: 14px;
