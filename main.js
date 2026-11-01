@@ -1031,10 +1031,12 @@ els.visualize.addEventListener('click', async () => {
     // An error or a limit stop lands straight on the last executed line —
     // the buggy line for runtime errors — instead of the first step.
     if (programError || stoppedRun) {
-      // Terminal state (runtime error / step-time limit stop): the editor is
-      // already auto-unlocked via the failed flag; freeze playback controls
-      // and wait for the first real edit to clear the trace (design doc).
-      if (steps.length) awaitingEdit = true;
+      // Terminal state. Runtime error: the editor is already auto-unlocked via
+      // the failed flag, and the user may trace back through the steps to the
+      // buggy line — so keep playback controls live (no awaiting-edit freeze).
+      // Step/time-limit stop: freeze like the successful-final awaiting state
+      // and wait for the first real edit to clear the trace.
+      if (stoppedRun && !programError && steps.length) awaitingEdit = true;
       idx = steps.length - 1;
       render();
       scrollToLine(steps[idx].line);
