@@ -425,6 +425,28 @@ els.textarea.addEventListener('keydown', (e) => {
       renderEditor();
       syncScroll();
       scheduleCaretFollow();
+    } else if (start !== end) {
+      // Indent: add one indentation level to each line the selection touches,
+      // mirroring the Shift+Tab block bookkeeping exactly (design doc
+      // 2026-11-02-tab-indent-design.md, grilled Q1–Q4).
+      const lineStart = t.value.lastIndexOf('\n', start - 1) + 1;
+      const blockEnd = t.value.indexOf('\n', end) === -1
+        ? t.value.length
+        : t.value.indexOf('\n', end);
+      const lines = t.value.slice(lineStart, blockEnd).split('\n');
+      let offset = 0;   // growth of the block tail: one INDENT per selected line
+      const indented = lines.map((line) => {
+        offset += INDENT.length;
+        return INDENT + line;
+      }).join('\n');
+      spliceInsert(t, lineStart, blockEnd, indented);
+      // First line's indent shifts the selection head; every selected line's
+      // indent accumulates on the tail — the original text stays selected.
+      t.selectionStart = start + INDENT.length;
+      t.selectionEnd = end + offset;
+      renderEditor();
+      syncScroll();
+      scheduleCaretFollow();
     } else {
       t.value = t.value.slice(0, start) + INDENT + t.value.slice(end);
       t.selectionStart = t.selectionEnd = start + INDENT.length;
