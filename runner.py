@@ -432,12 +432,29 @@ def __viz_run(code):
         last_line = steps[-1]["line"]
         final_line = error_line if (error_line and error_line > 0) else last_line
         final_locals = {}
-        for name, value in g.items():
-            if not name.startswith("__") and not isinstance(value, types.ModuleType):
+
+        def add_final(names):
+            for name, value in names:
+                if name.startswith("__") or isinstance(value, types.ModuleType):
+                    continue
+                if name in final_locals:
+                    continue   # sticky and globals name the same variable once
+                if len(final_locals) >= MAX_VARS:
+                    final_locals["…"] = "more variables hidden"
+                    return False
                 try:
                     final_locals[name] = __viz_make_safe(value)
                 except Exception:
-                    pass
+                    final_locals[name] = "<?>"
+            return True
+
+        # Keep the layout of the regular module snapshots: class-body names
+        # (sticky) first, then module globals, capped at MAX_VARS exactly like
+        # __viz_locals does. Class names leave the module namespace when the
+        # body ends and survive only via sticky — without this merge the
+        # synthetic final step would make them vanish right at the last step.
+        add_final(list(sticky.items()))
+        add_final(g.items())
         steps.append({"line": final_line, "locals": final_locals,
                       "outLen": len(output), "finished": True,
                       "stack": steps[-1].get("stack", [])})
