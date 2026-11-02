@@ -281,7 +281,8 @@ def __viz_run(code):
                     else:
                         break
                 info = call_info.get(fid) or {"fn": fr.f_code.co_name, "args": {}}
-                chain.append({"id": fid, "fn": info["fn"], "args": info["args"]})
+                chain.append({"id": fid, "fn": info["fn"], "args": info["args"],
+                              "sig": fr.f_code.co_firstlineno})
                 fr = fr.f_back
             chain.reverse()
             step = {"line": frame.f_lineno, "locals": snap, "outLen": out.tell(),
@@ -350,7 +351,8 @@ def __viz_run(code):
                         else:
                             break
                     info = call_info.get(chain_fid) or {"fn": fr.f_code.co_name, "args": {}}
-                    chain.append({"id": chain_fid, "fn": info["fn"], "args": info["args"]})
+                    chain.append({"id": chain_fid, "fn": info["fn"], "args": info["args"],
+                                  "sig": fr.f_code.co_firstlineno})
                     fr = fr.f_back
                 chain.reverse()
                 step = {"line": frame.f_lineno, "locals": snap, "outLen": out.tell(),
