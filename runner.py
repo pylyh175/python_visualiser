@@ -363,7 +363,19 @@ def __viz_run(code):
                 steps.append(step)
         return tracer
 
-    g = {"__name__": "__main__", "__builtins__": builtins}
+    def _viz_data_science_globals():
+        g = {"__name__": "__main__", "__builtins__": builtins}
+        # expose data science libraries if available in this Python environment
+        # users can import them exactly like regular Python modules
+        for lib_name in ["numpy", "pandas", "matplotlib", "sklearn", "scikit-learn"]:
+            try:
+                g[lib_name] = __import__(lib_name)
+            except ImportError:
+                # preserve "ImportError" for when users try to import it
+                pass
+        return g
+
+    g = _viz_data_science_globals()
     old_stdout = sys.stdout
     sys.stdout = out
     stopped = False
