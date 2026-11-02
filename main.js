@@ -115,30 +115,9 @@ function renderEditor() {
   // return) complete a call on their own line — nothing is about to run
   // afterwards, so they show the green arrow on the return line only.
   // Error/limit final step: red buggy-line marker instead.
-  const atErrorStep = steps.length
-    ? idx === steps.length - 1 && (!!programError || stoppedRun)
-    : !!programError && !!programError.line;
-  let greenLine = null;
-  let nextLine = null;
-  let redLine = null;
-  if (steps.length) {
-    if (!atErrorStep) {
-      if (steps[idx].retStep) {
-        // A return step completes a call on its own line; the caller then
-        // resumes silently on the same line, so only the green
-        // just-finished arrow shows, on the return line itself.
-        greenLine = steps[idx].line;
-        nextLine = null;
-      } else {
-        greenLine = idx > 0 ? steps[idx - 1].line : null;
-        nextLine = steps[idx].line;
-      }
-    } else {
-      redLine = steps[idx].line;
-    }
-  } else if (programError && programError.line) {
-    redLine = programError.line;
-  }
+  // The arrow classification lives in stepArrowLines(): the same source is
+  // what ensureStepVisible tracks, so drawing and auto-scroll can't drift.
+  const { greenLine, orangeLine: nextLine, redLine } = stepArrowLines();
 
   const parts = [];
   for (let i = 0; i < lines.length; i++) {
@@ -669,32 +648,152 @@ function scrollToLine(line) {
   if (!line || line < 1) return;
   const row = rowAt(line);
   if (!row) return;
+  cancelStepGlide();
   els.textarea.scrollTop = Math.max(0, row.offsetTop - els.textarea.clientHeight / 3);
   syncScroll();
 }
 
-// Keep the green (just-executed) and orange (next) lines visible together
-// while stepping. Only when the two cannot both be seen in the viewport,
-// scroll just enough to bring the NEXT line into view, so the user follows
-// execution without manual scrolling. If both already fit, never scroll.
+const STEP_MARGIN = 22;        // px of breathing room so a tracked line never
+                               // glues to the viewport edge (same policy the
+                               // old step auto-scroll used)
+const STEP_ANIM_MS = 150;      // glide time for automatic step adjustments
+
+// The arrow lines renderEditor draws for the current state — the single
+// source consumed both when drawing and by the step auto-scroll below:
+//   normal step: green on the previous step's line, orange on the current
+//   return step: green only, on the return line (nothing is about to run)
+//   error/limit final step: red only, on the failing line
+function stepArrowLines() {
+  const atErrorStep = steps.length
+    ? idx === steps.length - 1 && (!!programError || stoppedRun)
+    : !!programError && !!programError.line;
+  let greenLine = null;
+  let orangeLine = null;
+  let redLine = null;
+  if (steps.length) {
+    if (!atErrorStep) {
+      if (steps[idx].retStep) {
+        // A return step completes a call on its own line; the caller then
+        // resumes silently on the same line, so only the green
+        // just-finished arrow shows, on the return line itself.
+        greenLine = steps[idx].line;
+      } else {
+        greenLine = idx > 0 ? steps[idx - 1].line : null;
+        orangeLine = steps[idx].line;
+      }
+    } else {
+      redLine = steps[idx].line;
+    }
+  } else if (programError && programError.line) {
+    redLine = programError.line;
+  }
+  return { greenLine, orangeLine, redLine };
+}
+
+// Mirror rows of the arrows actually drawn this step, priority first
+// (orange — or red/green when it is the only arrow — beats green when the
+// viewport cannot hold both).
+function arrowRows() {
+  const { greenLine, orangeLine, redLine } = stepArrowLines();
+  const lines = [];
+  if (redLine != null) {
+    lines.push(redLine);
+  } else {
+    if (orangeLine != null) lines.push(orangeLine);
+    if (greenLine != null && greenLine !== orangeLine) lines.push(greenLine);
+  }
+  return lines.map((line) => rowAt(line)).filter(Boolean);
+}
+
+// Keep the arrows the user watches (orange next-to-execute, green
+// just-executed, red on the error step) visible while stepping, anchored on
+// exactly what renderEditor draws — not on the next step's line. Policy:
+// every drawn arrow row already in view ⇒ the scroll is left alone (manual
+// scrolling is never fought); otherwise the adjusted position clamps into
+// the arrows' shared window (STEP_MARGIN so a tracked line never glues to
+// an edge); when no window covers both, the priority arrow wins and the
+// other may leave the view. Adjustments glide (short ease-out, retargeted
+// when the user keeps stepping); manual scrolling cancels the glide and
+// prefers-reduced-motion users get instant moves instead.
 function ensureStepVisible() {
   if (!steps.length || idx >= steps.length) return;
-  const cur = rowAt(steps[idx].line);
-  if (!cur) return;
-  const nxt = (idx + 1 < steps.length && rowAt(steps[idx + 1].line)) || cur;
+  const rows = arrowRows();
+  if (!rows.length) return;
   const t = els.textarea;
-  const top = Math.min(cur.offsetTop, nxt.offsetTop);
-  const bottom = Math.max(cur.offsetTop + cur.offsetHeight, nxt.offsetTop + nxt.offsetHeight);
-  if (top >= t.scrollTop && bottom <= t.scrollTop + t.clientHeight) return;   // both visible
-  // Not both visible: land the next line inside the viewport (a line's
-  // height of margin so it is not glued to the edge), clamped to the
-  // scroll range. Scrolling up stops just above the next line, so the
-  // just-executed line in front of it stays visible too when it fits.
-  const want = nxt.offsetTop + nxt.offsetHeight + 22 - t.clientHeight;
-  const lo = Math.max(0, nxt.offsetTop - 22);
-  t.scrollTop = Math.max(lo, Math.min(want, t.scrollHeight - t.clientHeight));
-  syncScroll();
+  const inView = (row) => row.offsetTop >= t.scrollTop
+    && row.offsetTop + row.offsetHeight <= t.scrollTop + t.clientHeight;
+  if (rows.every(inView)) return;   // everything fits: don't move
+  const max = t.scrollHeight - t.clientHeight;
+  const windowOf = (row) => {
+    const lo = Math.max(0, row.offsetTop + row.offsetHeight + STEP_MARGIN - t.clientHeight);
+    const hi = Math.min(max, row.offsetTop - STEP_MARGIN);
+    if (hi < lo) {
+      // Row taller than the viewport: park its top just inside the margin.
+      const park = Math.max(0, Math.min(max, row.offsetTop - STEP_MARGIN));
+      return [park, park];
+    }
+    return [lo, hi];
+  };
+  let win = null;
+  for (const row of rows) {
+    const w = windowOf(row);
+    const joined = win
+      ? [Math.max(win[0], w[0]), Math.min(win[1], w[1])]
+      : w;
+    if (joined[0] > joined[1]) break;   // conflict: the priority arrow wins
+    win = joined;
+  }
+  if (!win) return;
+  const target = Math.round(Math.min(win[1], Math.max(win[0], t.scrollTop)));
+  if (target === Math.round(t.scrollTop)) return;
+  glideScrollTo(t, target);
 }
+
+/* ---------- eased glide for automatic step adjustments ---------- */
+
+let stepGlide = null;   // the in-flight glide's requestAnimationFrame handle
+
+function cancelStepGlide() {
+  if (stepGlide !== null) {
+    cancelAnimationFrame(stepGlide);
+    stepGlide = null;
+  }
+}
+
+// Glide the editor's scrollTop to target with a short ease-out. A new call
+// retargets from the current position (rapid stepping stays fluid); manual
+// scrolling cancels it mid-flight, and reduced-motion users get an instant
+// set instead.
+function glideScrollTo(t, target) {
+  cancelStepGlide();
+  const reduce = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) {
+    t.scrollTop = target;
+    syncScroll();
+    return;
+  }
+  const from = t.scrollTop;
+  const delta = target - from;
+  const start = performance.now();
+  const ease = (p) => 1 - Math.pow(1 - p, 3);   // ease-out cubic
+  const tick = (now) => {
+    const p = Math.min(1, (now - start) / STEP_ANIM_MS);
+    t.scrollTop = from + delta * ease(p);
+    if (p < 1) {
+      stepGlide = requestAnimationFrame(tick);
+    } else {
+      stepGlide = null;
+      syncScroll();
+    }
+  };
+  stepGlide = requestAnimationFrame(tick);
+}
+
+// Manual scrolling mid-glide wins: the animation never fights the user.
+els.textarea.addEventListener('wheel', cancelStepGlide, { passive: true });
+els.textarea.addEventListener('touchstart', cancelStepGlide, { passive: true });
+els.textarea.addEventListener('pointerdown', cancelStepGlide, { passive: true });
 
 /* ---------- keep the caret inside the view while editing ---------- */
 
@@ -964,6 +1063,7 @@ els.tabTree.addEventListener('click', () => {
 });
 
 function resetRun() {
+  cancelStepGlide();
   steps = [];
   programError = null;
   stoppedRun = false;
