@@ -948,10 +948,26 @@ function treeValue(v, cap) {
   return s;
 }
 
+// True recursion = the same function's *code* re-entered deeper in one call
+// chain — direct (f→f) or indirect (f→g→f). Plain nesting (module → method,
+// helper calls) never repeats a code object: frames are matched by function
+// name plus signature (co_firstlineno, provided as `sig` by the runner), so a
+// module-level function and a same-named method on one chain don't collide.
+function chainIsRecursive(chain) {
+  if (!chain || chain.length < 2) return false;
+  for (let i = 0; i < chain.length; i++) {
+    for (let j = i + 1; j < chain.length; j++) {
+      if (chain[i].fn === chain[j].fn && chain[i].sig === chain[j].sig) return true;
+    }
+  }
+  return false;
+}
+
 function renderTree() {
-  // Tabs exist only for runs where a user function was called while another
-  // user function was still on the stack (i.e. actual recursion/nesting).
-  const recursive = steps.length && steps.some((s) => s.stack && s.stack.length >= 2);
+  // Tabs exist only for runs with actual recursion: the same function's code
+  // re-entered on some recorded call chain. Nested user calls (methods or
+  // helpers at chain depth ≥ 2) are not recursion and keep the tabs hidden.
+  const recursive = steps.length && steps.some((s) => chainIsRecursive(s.stack || []));
   if (!recursive) {
     els.outTabs.hidden = true;
     els.outTitle.hidden = false;
@@ -962,10 +978,10 @@ function renderTree() {
   }
   els.outTabs.hidden = false;
   els.outTitle.hidden = true;
-  // Once the run actually starts recursing, show the tree (first time only —
-  // after that a manual tab choice is sticky until the run is reset).
+  // Once the current chain starts re-entering code, show the tree (first time
+  // only — after that a manual tab choice is sticky until the run is reset).
   const cur = steps[idx].stack || [];
-  if (!userTab && !treeAnnounced && cur.length >= 2) {
+  if (!userTab && !treeAnnounced && chainIsRecursive(cur)) {
     treeAnnounced = true;
     outTab = 'tree';
   }
