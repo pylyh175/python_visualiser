@@ -1136,6 +1136,19 @@ async function init() {
     pyodide = await loadPyodide({
       totalMemory: 4 * 1024 * 1024,   // 4 MB heap for the WASM runtime
     });
+    
+    // Load data science libraries into Pyodide environment
+    // This provides the same foundation for browser execution as the Python runner
+    for (const libName of ["numpy", "pandas", "matplotlib", "sklearn", "scikit-learn"]) {
+      try {
+        await pyodide.loadPackage(libName);
+      } catch (e) {
+        // library not available in this Pyodide installation; preserve the error
+        // for when users try to import it
+        console.warn(`Pyodide package '${libName}' not available:`, e.message);
+      }
+    }
+    
     await pyodide.runPythonAsync(runnerSource);
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
