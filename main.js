@@ -38,7 +38,9 @@ const els = {
   outTabs: document.getElementById('outTabs'),
   tabOut: document.getElementById('tabOut'),
   tabTree: document.getElementById('tabTree'),
+  tabStack: document.getElementById('tabStack'),
   treeBody: document.getElementById('treeBody'),
+  stackBody: document.getElementById('stackBody'),
   dsaMode: document.getElementById('dsaMode'),
 };
 
@@ -63,7 +65,7 @@ let locked = false;         // editor locked until ✎ Edit is clicked
 const DSA_MODES = [
   { id: 'none',        label: '(none / normal run)', status: 'ready' },
   { id: 'recursion',   label: 'Recursion',           status: 'ready' },
-  { id: 'stack',       label: 'Stack',               status: 'planned' },
+  { id: 'stack',       label: 'Stack',               status: 'ready' },
   { id: 'queue',       label: 'Queue',               status: 'planned' },
   { id: 'linked-list', label: 'Linked List',         status: 'planned' },
 ];
@@ -611,7 +613,7 @@ function render() {
   els.slider.disabled = !playbackOn;
   renderOutput();
   renderVars();
-  renderTree();
+  renderOutPanel();
   ensureStepVisible();
 }
 
@@ -644,6 +646,11 @@ function renderOutput() {
   // ground-truth probe: steps 0-3 of fib(6) showed it right after the run.)
   if (els.dsaMode.value === 'recursion' && !recursionSeenUpTo(steps.length - 1)) {
     text += '<span class="err">No recursion detected in this code.</span>';
+  }
+  // Stack mode, muted (not an error) note when no qualifying class was found
+  // in the run's source (2026-11-03-stack-visualiser-design.md, call 5).
+  if (els.dsaMode.value === 'stack' && stackScan && !stackScan.found) {
+    text += '<span class="info">No Stack found — needs a class with push() and pop().</span>';
   }
   els.output.innerHTML = text || '<span style="color:#9ca3af">(no output yet)</span>';
   els.output.scrollTop = els.output.scrollHeight;
@@ -987,9 +994,12 @@ document.addEventListener('keydown', (e) => {
 
 const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary row
 
-let outTab = 'out';          // active output-panel tab: 'out' | 'tree'
+let outTab = 'out';          // active output-panel tab: 'out' | 'tree' | 'stack'
 let userTab = false;         // the user picked a tab — keep it for this run
 let treeAnnounced = false;   // the one-time auto-switch to the tree happened
+let stackAnnounced = false;  // the one-time auto-switch to the stack panel
+let stackScan = null;        // scanStackSource() result for the running code
+let outFam = null;           // which tab family the panel showed last render
 
 // Replay steps 0..idx into a tree: each step's `stack` (outermost user frame
 // first) registers or confirms its frames, joined parent ← child following
@@ -1164,15 +1174,224 @@ function renderTree() {
   els.treeBody.scrollTop = els.treeBody.scrollHeight;
 }
 
+/* ---------- Stack visualiser (Stack tab; 2026-11-03-stack-visualiser-design.md) ---------- */
+
+const STACK_CELL_CAP = 100;   // cells drawn; deeper ones become a summary row
+
+// The panel shows HOW MANY tab buttons exist per family: recursion →
+// Output|Recursion (renderTree), stack → Output|Stack (renderStack), blank
+// mode or no trace → plain output without a tab bar. Family switching
+// (mode change on a live trace) resets the manual tab choice.
+function renderOutPanel() {
+  const fam = els.dsaMode.value || 'none';
+  if (fam !== outFam) {
+    outFam = fam;
+    outTab = 'out'; userTab = false; treeAnnounced = false; stackAnnounced = false;
+  }
+  els.tabTree.hidden = fam !== 'recursion';
+  els.tabStack.hidden = fam !== 'stack';
+  els.treeBody.hidden = fam !== 'recursion';
+  els.stackBody.hidden = fam !== 'stack';
+  if (!steps.length || (fam !== 'recursion' && fam !== 'stack')) {
+    hideOutTabsAll(fam);
+    return;
+  }
+  if (fam === 'stack') renderStack();
+  else renderTree();
+}
+
+// Shared "no tab family" layout: plain output, both panels hidden, tab
+// state reset. `fam` is recorded so a later render with the same family
+// doesn't re-reset (and undo a manual tab choice) spuriously.
+function hideOutTabsAll(fam) {
+  els.outTabs.hidden = true;
+  els.outTitle.hidden = false;
+  els.output.hidden = false;
+  els.treeBody.hidden = true;
+  els.stackBody.hidden = true;
+  outTab = 'out'; userTab = false; treeAnnounced = false; stackAnnounced = false;
+  outFam = fam || 'none';
+}
+
+// Contract C (grilled): a user-defined class qualifies with `push` + `pop`;
+// optional ops degrade gracefully — a missing method simply never matches a
+// frame, its visual never appears. Each method is recorded with the def's
+// LINE NUMBER, which matches the runner's per-frame `sig` (= co_firstlineno),
+// so every recorded frame is pinned to ITS method with no runner change.
+const STACK_CONTRACT = [
+  { key: 'push',  names: ['push'] },
+  { key: 'pop',   names: ['pop'] },
+  { key: 'peek',  names: ['peek', 'top'] },
+  { key: 'init',  names: ['__init__'] },
+  { key: 'empty', names: ['is_empty', 'isEmpty', '__bool__'] },
+  { key: 'size',  names: ['size', 'length', '__len__'] },
+];
+
+// Lightweight text scan of the editor source (same-heuristic class-block
+// parser as the runner has no; no AST library). Multi-line def headers and
+// param defaults ending in a tuple degrade gracefully (value lost, op still
+// detected — `sig` still matches because it is the def's line number).
+function scanStackSource(src) {
+  const det = { found: false, cls: null, methods: {}, stackParam: 'self', pushParam: null };
+  const paramNames = (text) => text.split(',')
+    .map((p) => p.split(/[=:]/)[0].trim())
+    .filter(Boolean);
+  const lines = String(src).split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const cm = lines[i].match(/^(\s*)class\s+([A-Za-z_]\w*)\s*[:(]/);
+    if (!cm) continue;
+    const clsIndent = cm[1].length;
+    const methods = {};
+    let j = i + 1;
+    for (; j < lines.length; j++) {
+      const t = lines[j];
+      if (!t.trim()) continue;
+      if (t.match(/^\s*/)[0].length <= clsIndent) break;   // dedent ends the body
+      const dm = t.match(/^\s*def\s+([A-Za-z_]\w*)\s*\((.*?)\)\s*(?:->[^:]*)?:/);
+      if (dm) {
+        methods[dm[1]] = { line: j + 1, params: paramNames(dm[2]) };
+      }
+    }
+    if (methods.push && methods.pop) {
+      det.found = true;
+      det.cls = cm[2];
+      const m = {};
+      for (const spec of STACK_CONTRACT) {
+        const name = spec.names.find((n) => methods[n]);
+        if (name) m[spec.key] = { name, line: methods[name].line };
+      }
+      det.methods = m;
+      if (m.push) {
+        const params = methods[m.push.name].params;
+        det.stackParam = params[0] || 'self';
+        det.pushParam = params[1] || null;
+      }
+      return det;
+    }
+  }
+  return det;
+}
+
+// Which contract method does a recorded frame belong to? `sig` pins the
+// method exactly (the runner provides co_firstlineno), so a same-named
+// module-level function can never be confused with the class method.
+function stackOpKey(frame, det) {
+  const m = det.methods;
+  for (const key of Object.keys(m)) {
+    if (frame.fn === m[key].name && frame.sig === m[key].line) return key;
+  }
+  return null;
+}
+
+function stackArg(frame, name) {
+  if (name == null) return null;
+  const a = frame.args || {};
+  return a[name] === undefined ? null : a[name];
+}
+
+// Replay steps 0..upTo into op records, deduped by frame id, first-appearance
+// order — same derivation shape as treeData: deterministic for any idx, and
+// rewind is exact because nothing is mutated, only re-derived.
+function collectStackOps(upTo, det) {
+  const recs = new Map();
+  const last = Math.min(upTo, steps.length - 1);
+  for (let s = 0; s <= last; s++) {
+    const st = steps[s].stack || [];
+    for (const e of st) {
+      if (recs.has(e.id)) continue;
+      const key = stackOpKey(e, det);
+      if (!key) continue;
+      recs.set(e.id, {
+        key,
+        value: key === 'push' ? stackArg(e, det.pushParam) : null,
+        start: s,
+        ret: null, retStep: null,
+      });
+    }
+    for (const r of steps[s].ret || []) {
+      const rec = recs.get(r.id);
+      if (rec && rec.retStep === null) { rec.ret = r.value; rec.retStep = s; }
+    }
+  }
+  return recs;
+}
+
+function renderStack() {
+  const det = stackScan;
+  if (!det || !det.found) { hideOutTabsAll('stack'); return; }
+  els.outTabs.hidden = false;
+  els.outTitle.hidden = true;
+  const recs = collectStackOps(idx, det);
+
+  // Derive the panel state purely from op records: cells bottom→top,
+  // the newest returned contract call (label once its return step played),
+  // whether the current step sits inside a peek body (highlight the top).
+  let cells = [];   // { v, start } — bottom → top
+  let lastRet = null;   // { key, value, step }
+  let peekTop = false;
+  let inits = 0;
+  for (const rec of recs.values()) {
+    if (rec.key === 'push') {
+      cells.push({ v: rec.value, start: rec.start });
+    } else if (rec.key === 'pop') {
+      cells.pop();
+    }
+    if ((rec.key === 'pop' || rec.key === 'peek' || rec.key === 'size' || rec.key === 'empty')
+      && rec.retStep !== null && (!lastRet || rec.retStep >= lastRet.step)) {
+      lastRet = { key: rec.key, value: rec.ret, step: rec.retStep };
+    }
+    if (rec.key === 'peek' && rec.retStep === null) peekTop = true;
+    if (rec.key === 'init') inits++;
+  }
+  const extraCells = cells.length > STACK_CELL_CAP ? cells.length - STACK_CELL_CAP : 0;
+  if (extraCells) cells = cells.slice(-STACK_CELL_CAP);
+
+  // Auto-switch at the first push/pop (like the tree's auto-switch at the
+  // first recursive chain); a manual tab choice stays sticky (userTab).
+  const opsSeen = [...recs.values()].some((r) => r.key === 'push' || r.key === 'pop');
+  if (!userTab && !stackAnnounced && opsSeen) {
+    stackAnnounced = true;
+    outTab = 'stack';
+  }
+  els.tabOut.classList.toggle('active', outTab === 'out');
+  els.tabStack.classList.toggle('active', outTab === 'stack');
+  els.output.hidden = outTab !== 'out';
+  els.stackBody.hidden = outTab !== 'stack';
+  if (outTab !== 'stack') return;
+
+  const size = cells.length + extraCells;
+  const strip = ['size: ' + size, size === 0 ? '(empty)' : 'has items'];
+  if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
+  if (inits > 1) strip.push(`${inits} Stack instances — ops combined in call order`);
+  const col = [];
+  if (extraCells) col.push(`<div class="scell sc-more">+${extraCells} more below not shown</div>`);
+  for (let i = cells.length - 1; i >= 0; i--) {
+    const cls = ['scell'];
+    if (i === cells.length - 1) cls.push('sc-top');
+    if (i === cells.length - 1 && peekTop) cls.push('sc-peek');
+    if (cells[i].start === idx) cls.push('sc-in');
+    col.push(`<div class="${cls.join(' ')}">${escapeHtml(treeValue(cells[i].v, 40))}</div>`);
+  }
+  els.stackBody.innerHTML =
+    `<div class="sstrip">${strip.map(escapeHtml).join(' · ')}</div>` +
+    `<div class="scol">${col.join('\n') || '<div class="snone">(no Stack ops yet)</div>'}</div>`;
+  els.stackBody.scrollTop = 0;   // the top of the stack is at the top
+}
+
 els.tabOut.addEventListener('click', () => {
   outTab = 'out';
   if (steps.length) userTab = true;   // manual choice sticks until the run resets
-  renderTree();
+  renderOutPanel();
 });
 els.tabTree.addEventListener('click', () => {
   outTab = 'tree';
   if (steps.length) userTab = true;
-  renderTree();
+  renderOutPanel();
+});
+els.tabStack.addEventListener('click', () => {
+  outTab = 'stack';
+  if (steps.length) userTab = true;
+  renderOutPanel();
 });
 
 function resetRun() {
@@ -1182,7 +1401,8 @@ function resetRun() {
   stoppedRun = false;
   idx = 0;
   programOutput = '';
-  outTab = 'out'; userTab = false; treeAnnounced = false;
+  outTab = 'out'; userTab = false; treeAnnounced = false; stackAnnounced = false;
+  stackScan = null;
   render();
 }
 
@@ -1243,6 +1463,7 @@ els.visualize.addEventListener('click', async () => {
     return;
   }
   resetRun();
+  stackScan = scanStackSource(code);   // detection pinned to the code being run
   runInProgress = true;
   locked = true;
   syncVisualizeEnabled();
