@@ -1,0 +1,7 @@
+{
+  "name": "python-visualiser",
+  "private": true,
+  "type": "module",
+  "description": "Browser-based Python code + DSA visualiser (vanilla JS + Pyodide). No build step: src/main.js is loaded directly as an ES module.",
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}
