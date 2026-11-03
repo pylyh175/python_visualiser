@@ -96,47 +96,29 @@ function parseArrayValue(v) {
 export function renderTwoPointers() {
   if (!state.steps.length) { hideOutTabsAll('two-pointers'); return; }
 
-  // Auto-advance to first step with valid two-pointer detection on initial load
-  // (after a run completes, idx=0 but pointers may not be initialized yet)
-  if (state.idx === 0 && !state.userTab) {
-    for (let i = 0; i < state.steps.length; i++) {
-      if (detectTwoPointers(state.steps[i]?.locals || {})) {
-        state.idx = i;
-        break;
-      }
-    }
-  }
-
   const locals = state.steps[state.idx]?.locals || {};
   const detection = detectTwoPointers(locals);
 
-  // If detection fails at current step (e.g., final step after function returns),
-  // fall back to the last step with valid two-pointer data
-  if (!detection) {
-    let fallbackIdx = -1;
-    for (let i = state.idx - 1; i >= 0; i--) {
+  // If detection fails at current step (e.g., final step after function returns,
+  // or pointer out of bounds), auto-advance to first step with valid detection.
+  // This runs both on initial load (idx=0) and after a run completes (idx=last).
+  if (!detection && !state.userTab) {
+    for (let i = 0; i < state.steps.length; i++) {
       if (detectTwoPointers(state.steps[i]?.locals || {})) {
-        fallbackIdx = i;
-        break;
-      }
-    }
-    if (fallbackIdx >= 0) {
-      state.idx = fallbackIdx;
-      // Re-detect at fallback step
-      const fallbackLocals = state.steps[state.idx]?.locals || {};
-      const fallbackDetection = detectTwoPointers(fallbackLocals);
-      if (fallbackDetection) {
-        // Set up panel visibility and render with fallback detection
-        renderTwoPointersPanelContent(fallbackDetection);
+        state.idx = i;
+        // Re-detect at new index
+        const newLocals = state.steps[state.idx]?.locals || {};
+        const newDetection = detectTwoPointers(newLocals);
+        renderTwoPointersPanelContent(newDetection);
         return;
       }
     }
-    // No valid two-pointer data anywhere — show info
-    renderTwoPointersPanelContent(null);
-    return;
   }
 
-  // Normal detection - render the content
+  // Render current step's data. If detection fails at this step
+  // (e.g., final step after function returns, or pointer out of bounds),
+  // show info message without changing state.idx — navigation to other
+  // steps still works.
   renderTwoPointersPanelContent(detection);
 }
 
