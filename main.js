@@ -57,11 +57,15 @@ let locked = false;         // editor locked until ✎ Edit is clicked
 // array exists so each future DSA registers one entry (and, later, its own
 // visualiser module against the same id). status 'ready' = implemented,
 // 'planned' = selectable but inert (hint only, runs as usual).
+// (none) is the blank default: nothing chosen, the code runs and displays
+// normally (2026-11-03-dsa-mode-gating-design.md). Recursion is 'ready' —
+// selecting it gates the tab/tree offering and adds the no-recursion verdict.
 const DSA_MODES = [
-  { id: 'recursion',    label: 'Recursion',    status: 'ready' },
-  { id: 'stack',        label: 'Stack',        status: 'planned' },
-  { id: 'queue',        label: 'Queue',        status: 'planned' },
-  { id: 'linked-list',  label: 'Linked List',  status: 'planned' },
+  { id: 'none',        label: '(none / normal run)', status: 'ready' },
+  { id: 'recursion',   label: 'Recursion',           status: 'ready' },
+  { id: 'stack',       label: 'Stack',               status: 'planned' },
+  { id: 'queue',       label: 'Queue',               status: 'planned' },
+  { id: 'linked-list', label: 'Linked List',         status: 'planned' },
 ];
 const DSA_STORE_KEY = 'vizDsaMode';
 
@@ -81,13 +85,17 @@ function buildDsaMenu() {
   }
   let saved = null;
   try { saved = localStorage.getItem(DSA_STORE_KEY); } catch (err) { /* storage unavailable */ }
-  els.dsaMode.value = DSA_MODES.some((m) => m.id === saved) ? saved : 'recursion';
+  els.dsaMode.value = DSA_MODES.some((m) => m.id === saved) ? saved : 'none';
   els.dsaMode.addEventListener('change', () => {
     const mode = DSA_MODES.find((m) => m.id === els.dsaMode.value) || DSA_MODES[0];
     try { localStorage.setItem(DSA_STORE_KEY, mode.id); } catch (err) { /* storage unavailable */ }
     if (mode.status !== 'ready' && !runInProgress) {
       els.status.textContent = `${mode.label} visualisation is planned — code runs as usual`;
     }
+    // A live trace re-renders under the new mode immediately: switching to
+    // Recursion applies the verdict/tab gating to the steps already navigated,
+    // switching back to (none) removes the Recursion tab again.
+    if (steps.length && !runInProgress) render();
   });
 }
 const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
@@ -629,6 +637,13 @@ function renderOutput() {
   if (idx === steps.length - 1 && stoppedRun) {
     text += '<span class="err">— execution stopped: step/time limit reached (too many steps)</span>';
   }
+  // Recursion mode verdict (2026-11-03-dsa-mode-gating-design.md): while no
+  // recursion has appeared in the steps played so far, the output says so;
+  // the line disappears the moment the first recursive step is reached
+  // (forward or after a rewind back past it), when the tree takes over.
+  if (els.dsaMode.value === 'recursion' && !recursionSeenUpTo(idx)) {
+    text += '<span class="err">No recursion detected in this code.</span>';
+  }
   els.output.innerHTML = text || '<span style="color:#9ca3af">(no output yet)</span>';
   els.output.scrollTop = els.output.scrollHeight;
 }
@@ -1030,11 +1045,26 @@ function chainIsRecursive(chain) {
   return false;
 }
 
+// Did any of the steps played so far (0..i) re-enter code? Prefix scan, so
+// the verdict and the tab offering react to navigation: the error line and a
+// hidden Recursion tab "return" when the user rewinds before the first
+// recursive step (2026-11-03-dsa-mode-gating-design.md).
+function recursionSeenUpTo(i) {
+  for (let s = 0; s <= i && s < steps.length; s++) {
+    if (chainIsRecursive(steps[s].stack || [])) return true;
+  }
+  return false;
+}
+
 function renderTree() {
-  // Tabs exist only for runs with actual recursion: the same function's code
-  // re-entered on some recorded call chain. Nested user calls (methods or
+  // Tabs exist only in Recursion mode, and only once the trace played so far
+  // (steps 0..idx) contains actual recursion: the same function's code
+  // re-entered on some recorded call chain. In (none) mode — the blank
+  // default — the output panel stays tab-free even for recursive code;
+  // rewinding before the first recursive step hides the tabs again
+  // (2026-11-03-dsa-mode-gating-design.md). Nested user calls (methods or
   // helpers at chain depth ≥ 2) are not recursion and keep the tabs hidden.
-  const recursive = steps.length && steps.some((s) => chainIsRecursive(s.stack || []));
+  const recursive = els.dsaMode.value === 'recursion' && recursionSeenUpTo(idx);
   if (!recursive) {
     els.outTabs.hidden = true;
     els.outTitle.hidden = false;
@@ -1048,7 +1078,7 @@ function renderTree() {
   // Once the current chain starts re-entering code, show the tree (first time
   // only — after that a manual tab choice is sticky until the run is reset).
   const cur = steps[idx].stack || [];
-  if (!userTab && !treeAnnounced && chainIsRecursive(cur)) {
+  if (els.dsaMode.value === 'recursion' && !userTab && !treeAnnounced && chainIsRecursive(cur)) {
     treeAnnounced = true;
     outTab = 'tree';
   }
