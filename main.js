@@ -39,6 +39,7 @@ const els = {
   tabOut: document.getElementById('tabOut'),
   tabTree: document.getElementById('tabTree'),
   treeBody: document.getElementById('treeBody'),
+  dsaMode: document.getElementById('dsaMode'),
 };
 
 let pyodide = null;
@@ -49,12 +50,56 @@ let stoppedRun = false;
 let programOutput = '';
 let runInProgress = false;  // a Visualize run is currently executing
 let locked = false;         // editor locked until ✎ Edit is clicked
+
+// ── DSA selection (2026-11-03-dsa-dropdown-design.md) ─────────────────────
+// Single source of truth for the mode dropdown in the toolbar. Today the
+// recursion visualisation is automatic and independent of this choice; the
+// array exists so each future DSA registers one entry (and, later, its own
+// visualiser module against the same id). status 'ready' = implemented,
+// 'planned' = selectable but inert (hint only, runs as usual).
+const DSA_MODES = [
+  { id: 'recursion',    label: 'Recursion',    status: 'ready' },
+  { id: 'stack',        label: 'Stack',        status: 'planned' },
+  { id: 'queue',        label: 'Queue',        status: 'planned' },
+  { id: 'linked-list',  label: 'Linked List',  status: 'planned' },
+];
+const DSA_STORE_KEY = 'vizDsaMode';
+
+// Build the mode dropdown from the registry — index.html ships an empty
+// <select>, so the option list lives in exactly one place. The persisted
+// choice is restored only when it is still a known id (an entry removed from
+// the registry would otherwise leave the select showing a nameless value).
+// Manual changes persist immediately; a not-yet-implemented mode only gets
+// an honest status hint — the run flow itself never changes, and Recursion
+// keeps working exactly as it did, automatic and mode-independent.
+function buildDsaMenu() {
+  for (const mode of DSA_MODES) {
+    const opt = document.createElement('option');
+    opt.value = mode.id;
+    opt.textContent = mode.status === 'planned' ? mode.label + ' (planned)' : mode.label;
+    els.dsaMode.appendChild(opt);
+  }
+  let saved = null;
+  try { saved = localStorage.getItem(DSA_STORE_KEY); } catch (err) { /* storage unavailable */ }
+  els.dsaMode.value = DSA_MODES.some((m) => m.id === saved) ? saved : 'recursion';
+  els.dsaMode.addEventListener('change', () => {
+    const mode = DSA_MODES.find((m) => m.id === els.dsaMode.value) || DSA_MODES[0];
+    try { localStorage.setItem(DSA_STORE_KEY, mode.id); } catch (err) { /* storage unavailable */ }
+    if (mode.status !== 'ready' && !runInProgress) {
+      els.status.textContent = `${mode.label} visualisation is planned — code runs as usual`;
+    }
+  });
+}
 const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 
 // Visualize is only meaningful with code on the editor, and never while a
-// run is still in flight (the user can keep typing during execution).
+// run is still in flight (the user can keep typing during execution). The
+// mode selection follows the same mid-run discipline as the Edit button:
+// a mode change under a live run would be meaningless — and, once modules
+// attach to modes, dangerous.
 function syncVisualizeEnabled() {
   els.visualize.disabled = runInProgress || !els.textarea.value.trim();
+  els.dsaMode.disabled = runInProgress;
 }
 
 // Apply the editor lock: readOnly blocks direct typing (all programmatic
@@ -1381,3 +1426,4 @@ render();
 init();
 initSplitter();
 initVarsSplitter();
+buildDsaMenu();
