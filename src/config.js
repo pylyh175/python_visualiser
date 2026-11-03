@@ -25,11 +25,12 @@ export const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 // displays normally. Each future DSA registers one entry here — and, later,
 // its own visualiser module against the same id.
 export const DSA_MODES = [
-  { id: 'none',        label: '(none / normal run)', status: 'ready' },
-  { id: 'recursion',   label: 'Recursion',           status: 'ready' },
-  { id: 'stack',       label: 'Stack',               status: 'ready' },
-  { id: 'queue',       label: 'Queue',               status: 'planned' },
-  { id: 'linked-list', label: 'Linked List',         status: 'planned' },
+  { id: 'none',         label: '(none / normal run)', status: 'ready' },
+  { id: 'recursion',    label: 'Recursion',           status: 'ready' },
+  { id: 'stack',        label: 'Stack',               status: 'ready' },
+  { id: 'two-pointers', label: 'Two Pointers',        status: 'ready' },
+  { id: 'queue',        label: 'Queue',               status: 'planned' },
+  { id: 'linked-list',  label: 'Linked List',         status: 'planned' },
 ];
 export const DSA_STORE_KEY = 'vizDsaMode';
 

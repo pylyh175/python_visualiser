@@ -8,6 +8,7 @@ import { ensureStepVisible } from '../navigation/steps.js';
 import { renderVars } from './variables.js';
 import { renderTree, recursionSeenUpTo } from './recursion.js';
 import { renderStack } from './stack.js';
+import { renderTwoPointersPanel } from './twoPointers.js';
 import { hideOutTabsAll } from './shared.js';
 
 // Master render: editor mirror, playback controls, all output-panel bodies.
@@ -70,7 +71,8 @@ export function renderOutput() {
 }
 
 // The panel shows one tab FAMILY per DSA mode: recursion → Output|Recursion
-// (renderTree), stack → Output|Stack (renderStack), blank mode or no trace →
+// (renderTree), stack → Output|Stack (renderStack), two-pointers →
+// Output|Two Pointers (renderTwoPointersPanel), blank mode or no trace →
 // plain output without a tab bar. Family switching (mode change on a live
 // trace) resets the manual tab choice.
 export function renderOutPanel() {
@@ -82,13 +84,16 @@ export function renderOutPanel() {
   }
   els.tabTree.hidden = fam !== 'recursion';
   els.tabStack.hidden = fam !== 'stack';
+  els.tabTwoPtrs.hidden = fam !== 'two-pointers';
   els.treeBody.hidden = fam !== 'recursion';
   els.stackBody.hidden = fam !== 'stack';
-  if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack')) {
+  els.twoPtrsBody.hidden = fam !== 'two-pointers';
+  if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'two-pointers')) {
     hideOutTabsAll(fam);
     return;
   }
   if (fam === 'stack') renderStack();
+  else if (fam === 'two-pointers') renderTwoPointersPanel();
   else renderTree();
 }
 
@@ -104,6 +109,11 @@ els.tabTree.addEventListener('click', () => {
 });
 els.tabStack.addEventListener('click', () => {
   state.outTab = 'stack';
+  if (state.steps.length) state.userTab = true;
+  renderOutPanel();
+});
+els.tabTwoPtrs.addEventListener('click', () => {
+  state.outTab = 'two-pointers';
   if (state.steps.length) state.userTab = true;
   renderOutPanel();
 });
