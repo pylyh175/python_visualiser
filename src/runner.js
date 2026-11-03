@@ -79,8 +79,10 @@ els.visualize.addEventListener('click', async () => {
       scrollToLine(state.steps[state.idx].line);
       return;
     }
-    state.idx = 0;
+    // Successful run: land on the final step so the output is visible.
+    state.idx = state.steps.length - 1;
     render();
+    scrollToLine(state.steps[state.idx].line);
   } catch (err) {
     failed = true;
     state.programError = { text: 'Internal error: ' + (err && err.message || err), line: null };

@@ -110,16 +110,43 @@ export function renderTwoPointers() {
   const locals = state.steps[state.idx]?.locals || {};
   const detection = detectTwoPointers(locals);
 
+  // If detection fails at current step (e.g., final step after function returns),
+  // fall back to the last step with valid two-pointer data
   if (!detection) {
-    // No two pointers detected at current step — show info with step hint
-    els.outTabs.hidden = false;
-    els.outTitle.hidden = true;
-    els.tabTwoPtrs.hidden = false;
-    els.twoPtrsBody.hidden = false;
-    els.output.hidden = true;
+    let fallbackIdx = -1;
+    for (let i = state.idx - 1; i >= 0; i--) {
+      if (detectTwoPointers(state.steps[i]?.locals || {})) {
+        fallbackIdx = i;
+        break;
+      }
+    }
+    if (fallbackIdx >= 0) {
+      state.idx = fallbackIdx;
+      // Re-detect at fallback step
+      const fallbackLocals = state.steps[state.idx]?.locals || {};
+      const fallbackDetection = detectTwoPointers(fallbackLocals);
+      if (fallbackDetection) {
+        // Set up panel visibility and render with fallback detection
+        renderTwoPointersPanelContent(fallbackDetection);
+        return;
+      }
+    }
+    // No valid two-pointer data anywhere — show info
+    renderTwoPointersPanelContent(null);
+    return;
+  }
+
+  // Normal detection - render the content
+  renderTwoPointersPanelContent(detection);
+}
+
+// Renders the Two Pointers visual content into els.twoPtrsBody
+// Does NOT manipulate visibility - that's handled by renderOutPanel based on state.outTab
+function renderTwoPointersPanelContent(detection) {
+  if (!detection) {
     els.twoPtrsBody.innerHTML = `
       <div class="tp-strip">Select "Two Pointers" mode and run code with two indices on the same array.</div>
-      <div class="tp-empty">No two-pointer pattern detected at this step. Use Prev/Next to navigate.</div>
+      <div class="tp-empty">No two-pointer pattern detected. Use Prev/Next to navigate.</div>
     `;
     return;
   }
@@ -131,7 +158,7 @@ export function renderTwoPointers() {
   const len = arr.length;
   const visLen = Math.min(len, TWOPTR_VIS_CAP);
   const startIdx = Math.max(0, Math.min(leftIdx, rightIdx) - 2);
-  const endIdx = Math.min(len, startIdx + visLen);
+  const endIdx = Math.min(len, startIdx + TWOPTR_VIS_CAP);
 
   // Build array strip HTML
   let cellsHtml = '';
@@ -152,11 +179,15 @@ export function renderTwoPointers() {
   const leftVal = leftIdx >= 0 && leftIdx < len ? escapeHtml(fmtValue(arr[leftIdx])) : '—';
   const rightVal = rightIdx >= 0 && rightIdx < len ? escapeHtml(fmtValue(arr[rightIdx])) : '—';
 
+  // Render the visual content into the Two Pointers body
+  const leftLabelHtml = `${leftName}=${leftIdx}`;
+  const rightLabelHtml = `${rightName}=${rightIdx}`;
+
   els.twoPtrsBody.innerHTML = `
     <div class="tp-strip">
       <span class="tp-arr">${escapeHtml(arrName)}[${len}]</span>
-      <span class="tp-ptr tp-left-label">${escapeHtml(leftLabel)} → ${leftVal}</span>
-      <span class="tp-ptr tp-right-label">${escapeHtml(rightLabel)} → ${rightVal}</span>
+      <span class="tp-ptr tp-left-label">${escapeHtml(leftLabelHtml)} → ${leftVal}</span>
+      <span class="tp-ptr tp-right-label">${escapeHtml(rightLabelHtml)} → ${rightVal}</span>
     </div>
     <div class="tp-array" data-left="${leftIdx}" data-right="${rightIdx}">
       ${cellsHtml}
@@ -171,11 +202,14 @@ export function renderTwoPointersPanel() {
     els.twoPtrsBody.hidden = true;
     return;
   }
+  // Show the tab family for two-pointers mode
   els.outTabs.hidden = false;
   els.outTitle.hidden = true;
   els.tabTwoPtrs.hidden = false;
-  els.twoPtrsBody.hidden = false;
-  els.output.hidden = true;
+  // Visibility of output vs twoPtrsBody is controlled by state.outTab
+  els.output.hidden = state.outTab !== 'out';
+  els.twoPtrsBody.hidden = state.outTab !== 'two-pointers';
+  // Render the visual content
   renderTwoPointers();
 }
 
