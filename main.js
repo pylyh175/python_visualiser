@@ -637,11 +637,12 @@ function renderOutput() {
   if (idx === steps.length - 1 && stoppedRun) {
     text += '<span class="err">— execution stopped: step/time limit reached (too many steps)</span>';
   }
-  // Recursion mode verdict (2026-11-03-dsa-mode-gating-design.md): while no
-  // recursion has appeared in the steps played so far, the output says so;
-  // the line disappears the moment the first recursive step is reached
-  // (forward or after a rewind back past it), when the tree takes over.
-  if (els.dsaMode.value === 'recursion' && !recursionSeenUpTo(idx)) {
+  // Recursion mode verdict: 
+  // a verdict about THE CODE, so it scans the whole recorded trace — shown only when no
+  // recursion exists anywhere in it. (An earlier prefix scan 0..idx printed
+  // the line on the early, pre-first-call steps of clearly recursive code —
+  // ground-truth probe: steps 0-3 of fib(6) showed it right after the run.)
+  if (els.dsaMode.value === 'recursion' && !recursionSeenUpTo(steps.length - 1)) {
     text += '<span class="err">No recursion detected in this code.</span>';
   }
   els.output.innerHTML = text || '<span style="color:#9ca3af">(no output yet)</span>';
@@ -1045,10 +1046,9 @@ function chainIsRecursive(chain) {
   return false;
 }
 
-// Did any of the steps played so far (0..i) re-enter code? Prefix scan, so
-// the verdict and the tab offering react to navigation: the error line and a
-// hidden Recursion tab "return" when the user rewinds before the first
-// recursive step (2026-11-03-dsa-mode-gating-design.md).
+// Did the steps up to i re-enter code? Prefix scan driving the Recursion-tab
+// offering (hidden when rewound before the first recursive step). The
+// no-recursion verdict calls it with steps.length - 1 — a whole-run check
 function recursionSeenUpTo(i) {
   for (let s = 0; s <= i && s < steps.length; s++) {
     if (chainIsRecursive(steps[s].stack || [])) return true;
