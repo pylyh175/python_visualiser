@@ -27,7 +27,9 @@ export const els = {
   tabOut: document.getElementById('tabOut'),
   tabTree: document.getElementById('tabTree'),
   tabStack: document.getElementById('tabStack'),
+  tabTwoPtrs: document.getElementById('tabTwoPtrs'),
   treeBody: document.getElementById('treeBody'),
   stackBody: document.getElementById('stackBody'),
+  twoPtrsBody: document.getElementById('twoPtrsBody'),
   dsaMode: document.getElementById('dsaMode'),
 };
