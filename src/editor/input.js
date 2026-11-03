@@ -324,16 +324,17 @@ els.textarea.addEventListener('keydown', (e) => {
       && st.depth === 0 && !st.triple && !info.backslash && !info.openStr
       && !info.kw;
     if (!content && indent.length > 0 && !openStatement) {
-      // Blank auto-indented line + Enter = exit the block: the caret moves
-      // to column 0 of this line, no empty line is left behind. (Blank lines
-      // inside brackets or a docstring are not block exits — plain splits.)
-      t.setSelectionRange(lineStart, pos);
-      if (document.execCommand && document.execCommand('delete')) {
-        // caret now sits at lineStart (column 0); nothing left to insert
-        scheduleCaretFollow();
-        return;
+      // Blank auto-indented line + Enter = create another blank line with
+      // the same indentation. Users use Shift+Tab to outdent/exit blocks.
+      const insertion = '\n' + indent;
+      try {
+        t.setSelectionRange(pos, pos);
+        if (!document.execCommand('insertText', false, insertion)) {
+          throw new Error('insertText rejected');
+        }
+      } catch (err) {
+        spliceInsert(t, pos, pos, insertion);
       }
-      spliceInsert(t, lineStart, pos, '');
       scheduleCaretFollow();
       return;
     }
