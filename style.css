@@ -331,6 +331,7 @@ textarea[readonly] {
   font-size: 13px;
   line-height: 18px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   background: #111827;
   color: #f9fafb;
 }
