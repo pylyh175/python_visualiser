@@ -1383,13 +1383,17 @@ function renderStack() {
   if (inits > 1) strip.push(`${inits} Stack instances — ops combined in call order`);
 
   const slotHtml = [];
-  // Render from top visual row down to bottom (index STACK_VIS_CAP-1 .. 0)
+  // Render from top visual row down to bottom (index STACK_VIS_CAP-1 .. 0).
+  // The BOTTOM visual rows (highest row index) hold the OLDEST items (bottom of stack).
+  // The TOP visual rows (row = STACK_VIS_CAP - visibleCells.length) hold the NEWEST.
+  const firstFilledRow = STACK_VIS_CAP - visibleCells.length;
   for (let row = STACK_VIS_CAP - 1; row >= 0; row--) {
-    const cellIdx = row - (STACK_VIS_CAP - visibleCells.length);
-    if (cellIdx < 0 || cellIdx >= visibleCells.length) {
-      // Empty slot
+    if (row < firstFilledRow) {
+      // Empty slot above the stack
       slotHtml.push(`<div class="sbox sbox-empty"></div>`);
     } else {
+      // Filled slot: row 7 -> visibleCells[0], row 6 -> visibleCells[1], etc.
+      const cellIdx = (STACK_VIS_CAP - 1) - row;
       const cell = visibleCells[cellIdx];
       const isTop = cellIdx === visibleCells.length - 1;
       const cls = ['sbox', 'sbox-filled'];
