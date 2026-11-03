@@ -1316,6 +1316,9 @@ function collectStackOps(upTo, det) {
   return recs;
 }
 
+// Fixed visual capacity for the drawn stack figure (grilled Q2).
+const STACK_VIS_CAP = 8;
+
 function renderStack() {
   const det = stackScan;
   if (!det || !det.found) { hideOutTabsAll('stack'); return; }
@@ -1323,16 +1326,14 @@ function renderStack() {
   els.outTitle.hidden = true;
   const recs = collectStackOps(idx, det);
 
-  // Derive the panel state purely from op records: cells bottom→top,
-  // the newest returned contract call (label once its return step played),
-  // whether the current step sits inside a peek body (highlight the top).
-  let cells = [];   // { v, start } — bottom → top
-  let lastRet = null;   // { key, value, step }
+  // Derive the current step's stack content (bottom→top, max STACK_VIS_CAP).
+  let cells = [];
+  let lastRet = null;
   let peekTop = false;
   let inits = 0;
   for (const rec of recs.values()) {
     if (rec.key === 'push') {
-      cells.push({ v: rec.value, start: rec.start });
+      cells.push({ v: rec.value, start: rec.start, id: rec.id });
     } else if (rec.key === 'pop') {
       cells.pop();
     }
@@ -1343,11 +1344,27 @@ function renderStack() {
     if (rec.key === 'peek' && rec.retStep === null) peekTop = true;
     if (rec.key === 'init') inits++;
   }
-  const extraCells = cells.length > STACK_CELL_CAP ? cells.length - STACK_CELL_CAP : 0;
-  if (extraCells) cells = cells.slice(-STACK_CELL_CAP);
+  const totalSize = cells.length;
+  const visibleCells = cells.slice(-STACK_VIS_CAP);
 
-  // Auto-switch at the first push/pop (like the tree's auto-switch at the
-  // first recursive chain); a manual tab choice stays sticky (userTab).
+  // Track enter/leave by comparing with previous step's cell IDs.
+  // A cell is "entering" if it's at the top and its push started at this step.
+  // A cell is "leaving" if it was the top at the previous step and is now gone
+  // (we render it one extra frame with a leaving class so CSS can fade it out).
+  const prevIdx = Math.max(0, idx - 1);
+  const prevRecs = collectStackOps(prevIdx, det);
+  let prevCells = [];
+  for (const rec of prevRecs.values()) {
+    if (rec.key === 'push') prevCells.push({ id: rec.id });
+    else if (rec.key === 'pop') prevCells.pop();
+  }
+  const prevTopId = prevCells.length ? prevCells[prevCells.length - 1].id : null;
+  const currTopId = cells.length ? cells[cells.length - 1].id : null;
+  const enteringId = (cells.length && cells[cells.length - 1].start === idx)
+    ? cells[cells.length - 1].id : null;
+  const leavingId = (prevTopId !== null && prevTopId !== currTopId) ? prevTopId : null;
+
+  // Auto-switch at the first push/pop; manual tab choice stays sticky.
   const opsSeen = [...recs.values()].some((r) => r.key === 'push' || r.key === 'pop');
   if (!userTab && !stackAnnounced && opsSeen) {
     stackAnnounced = true;
@@ -1359,23 +1376,35 @@ function renderStack() {
   els.stackBody.hidden = outTab !== 'stack';
   if (outTab !== 'stack') return;
 
-  const size = cells.length + extraCells;
+  // Build the visual stack: always STACK_VIS_CAP slots, bottom row first.
+  const size = totalSize;
   const strip = ['size: ' + size, size === 0 ? '(empty)' : 'has items'];
   if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
   if (inits > 1) strip.push(`${inits} Stack instances — ops combined in call order`);
-  const col = [];
-  if (extraCells) col.push(`<div class="scell sc-more">+${extraCells} more below not shown</div>`);
-  for (let i = cells.length - 1; i >= 0; i--) {
-    const cls = ['scell'];
-    if (i === cells.length - 1) cls.push('sc-top');
-    if (i === cells.length - 1 && peekTop) cls.push('sc-peek');
-    if (cells[i].start === idx) cls.push('sc-in');
-    col.push(`<div class="${cls.join(' ')}">${escapeHtml(treeValue(cells[i].v, 40))}</div>`);
+
+  const slotHtml = [];
+  // Render from top visual row down to bottom (index STACK_VIS_CAP-1 .. 0)
+  for (let row = STACK_VIS_CAP - 1; row >= 0; row--) {
+    const cellIdx = row - (STACK_VIS_CAP - visibleCells.length);
+    if (cellIdx < 0 || cellIdx >= visibleCells.length) {
+      // Empty slot
+      slotHtml.push(`<div class="sbox sbox-empty"></div>`);
+    } else {
+      const cell = visibleCells[cellIdx];
+      const isTop = cellIdx === visibleCells.length - 1;
+      const cls = ['sbox', 'sbox-filled'];
+      if (isTop) cls.push('sbox-top');
+      if (isTop && peekTop) cls.push('sbox-peek');
+      if (cell.id === enteringId) cls.push('sbox-enter');
+      if (cell.id === leavingId) cls.push('sbox-leave');
+      slotHtml.push(`<div class="${cls.join(' ')}">${escapeHtml(treeValue(cell.v, 40))}</div>`);
+    }
   }
+
   els.stackBody.innerHTML =
     `<div class="sstrip">${strip.map(escapeHtml).join(' · ')}</div>` +
-    `<div class="scol">${col.join('\n') || '<div class="snone">(no Stack ops yet)</div>'}</div>`;
-  els.stackBody.scrollTop = 0;   // the top of the stack is at the top
+    `<div class="sstack">${slotHtml.join('\n')}</div>`;
+  els.stackBody.scrollTop = 0;
 }
 
 els.tabOut.addEventListener('click', () => {
