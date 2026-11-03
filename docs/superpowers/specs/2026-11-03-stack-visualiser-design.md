@@ -85,19 +85,23 @@ One stack per lane: the **first-created instance whose class matched**
 first-call order). If a run creates more than one matching instance, the
 panel notes "N stacks detected — showing the first"; multi-lane is later.
 
-## Visual semantics (calls 1–4 of my proposal)
+## Visual semantics (calls 1–4 of my proposal; updated for the visual stack)
 
-- Vertical column, top of stack at the top; cells show pushed values
-  (truncated like tree values); a "+N more" marker if capped.
-- `push`: cell rises in at the step entering the push body (value from args).
-- `pop`: top cell leaves at the step entering the pop body; its value is
-  labelled once the pop frame's `return` step plays (`ret`).
-- `peek`: top cell highlights while the current step is inside a peek body.
-- `isEmpty`/`size`: not animations — a persistent state strip under the
-  panel: computed size, "`(empty)`" badge.
-- Tab `Stack` in the output panel, only when the Stack mode is chosen; a
-  stack is detected; recursion gating does not apply (the mode decides
-  which tab family shows).
+- Fixed `STACK_VIS_CAP = 8` slots, always rendered bottom-up; empty slots
+  are dashed hollow boxes, filled slots are solid boxes with the pushed
+  value centred.
+- `push`: a new filled box appears at the bottom with a **fade+scale-in**
+  animation (the step entering the push body).
+- `pop`: the top filled box **fades+scales out** (rendered one extra frame
+  so CSS can animate the departure; value labelled once the pop frame's
+  `return` step plays).
+- `peek`: the top filled box gets a persistent **amber outline** while the
+  current step is inside a `peek` frame.
+- `isEmpty`/`size`: a persistent state strip under the figure: computed
+  size, `(empty)` badge, last return (e.g. `last: pop() → true`), instance
+  note.
+- Tab `Stack` in the output panel, only when Stack mode is chosen; a stack
+  is detected; mode gating decides which tab family shows.
 
 ## Error path (call 5)
 
@@ -122,8 +126,10 @@ class was found, the output panel appends a muted (non-error) info line:
 - Scan is a lightweight regex/class-block parser in `main.js` (no JS AST
   library); dynamic-built or renamed classes (aliases) won't be seen —
   acceptable for v1, honest error path covers it.
-- Visual cap on shown cells mirrors the container cap (100).
-- Styling follows the existing tree-row styling vocabulary.
+- Visual cap on shown cells mirrors the container cap (100); drawn figure
+  cap `STACK_VIS_CAP = 8` is a separate visual limit.
+- Styling follows the existing tree-row styling vocabulary (orange top,
+  amber peek, dark terminal palette).
 
 ## Implementation record (as built)
 
@@ -133,20 +139,28 @@ class was found, the output panel appends a muted (non-error) info line:
   `stackOpKey()` pins frames to contract methods by `sig` (= co_firstlineno,
   probe-verified); `collectStackOps()` dedupes by frame id (first
   appearance) and resolves pop/peek values from `ret`; `renderStack()`
-  derives cells/state purely from those records — bottom→top column, top of
-  the stack at the top; auto-switch at the first push/pop (sticky manual
-  choice); state strip (size, empty badge, last return, instance note).
+  derives the visual stack:
+  - Fixed `STACK_VIS_CAP = 8` slots, bottom-up, always rendered.
+  - Filled slots = solid boxes with content; empty = dashed hollow boxes.
+  - Enter animation (push): new box fades+scales in at the bottom.
+  - Leave animation (pop): top box fades+scales out (rendered one extra
+    frame so CSS can animate it).
+  - Peek highlight: top filled box gets amber outline while inside a `peek`
+    frame.
+  - Auto-switch at the first push/pop; state strip below (size, empty
+    badge, last return, instance note).
 - Panel routing: `renderOutPanel()` shows one tab family per mode —
   Recursion → Output|Recursion (tree), Stack → Output|Stack, blank/none →
   plain output; a family switch on a live trace resets the manual tab
   choice. `index.html` gains the hidden Stack tab + `#stackBody`;
-  `style.css` the cell styles (top border orange, peek outline, rise-in
-  animation, dashed overflow row) and the muted `.info` class.
+  `style.css` the `.sstack` flex column, `.sbox` boxes, enter/leave/peek
+  animations, and the muted `.info` class.
 - `runner.py` untouched (verified by audit + probe).
 - Verified: stack sim 22/22 over real two-stack and init-only traces
   (scanner variants/synonyms/rejections, sig matching counts, push values
   from args, pop values from ret, rewind bit-exactness, peek outline,
-  auto-switch discipline); full regression sweep green; `node --check` OK.
+  enter/leave classes, auto-switch discipline, init-only case); full
+  regression sweep green; `node --check` OK.
 
 ## Deviation from the design (probed, accepted)
 
@@ -158,3 +172,14 @@ ops are replayed in call order in one lane, and when a run creates more than
 one instance (counted from `__init__` frames) the strip notes
 "N Stack instances — ops combined in call order". Single-instance runs —
 the documented case — are exactly what the design promised.
+
+## Visual stack addendum (grilled Q1–Q5, all yes)
+
+- Medium: HTML/CSS boxes (not Canvas) — restyled from existing cells, DOM-
+  driven via existing step re-render.
+- Fixed `STACK_VIS_CAP = 8` visible slots; empty slots render as dashed
+  hollow boxes; items fill bottom-up.
+- Animations: push = enter (fade+scale in), pop = leave (fade+scale out,
+  one extra frame), peek = persistent amber outline on top box.
+- Growth: bottom-up (matches the ASCII example).
+- State strip kept below the figure (unchanged).
