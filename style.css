@@ -155,6 +155,23 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 #btnVisualize:hover:not(:disabled) { background: #1d4ed8; }
 .hint { font-size: 12px; color: var(--muted); }
+/* DSA mode select: quiet, matches the toolbar's muted secondary controls, so
+   it reads as context rather than an action. Keeps the row layout natural
+   (buttons left, select in the middle, hint pushed to the right edge by the
+   anti-flank margin). */
+#dsaMode {
+  font: 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  max-width: 180px;
+  margin-left: auto;
+  cursor: pointer;
+}
+#dsaMode:disabled { opacity: 0.5; cursor: not-allowed; }
+#dsaMode:focus { outline: none; border-color: var(--accent); }
 
 .editor {
   flex: 1;
