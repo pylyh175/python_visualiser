@@ -393,28 +393,60 @@ textarea[readonly] {
   color: #f9fafb;
 }
 .sstrip { font-family: var(--mono); font-size: 12px; color: #9ca3af; }
-.scol { margin-top: 8px; }
-.scell {
-  width: max-content;
-  border: 1px solid #374151;
+
+/* Visual stack: fixed slots, bottom-up. Each slot is a box.
+   Empty = hollow with subtle border; Filled = solid with content.
+   Enter = fade+scale in; Leave = fade+scale out (rendered one extra frame).
+   Peek = amber outline on the top filled box. */
+.sstack {
+  display: flex;
+  flex-direction: column-reverse;   /* bottom row first visually */
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+.sbox {
+  width: 180px;
+  height: 36px;
+  box-sizing: border-box;
+  border: 2px solid #374151;
   border-radius: 6px;
-  background: #1f2937;
-  padding: 4px 10px;
-  margin-top: 6px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--mono);
   font-size: 13px;
   line-height: 18px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  color: #f9fafb;
+  transition: transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.scell.sc-top { border-color: var(--orange); }
-.scell.sc-peek { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.45); }
-.scell.sc-more { border-style: dashed; background: transparent; color: #9ca3af; }
-.scell.sc-in { animation: stackIn 0.25s ease-out; }
-.snone { font-family: var(--mono); font-size: 13px; color: #9ca3af; }
-@keyframes stackIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: none; }
+.sbox-empty {
+  border-style: dashed;
+  border-color: #4b5563;
+  background: transparent;
+}
+.sbox-filled {
+  background: #1f2937;
+  border-color: #374151;
+}
+.sbox-top { border-color: var(--orange); }
+.sbox-peek { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.45); }
+.sbox-enter {
+  animation: sboxEnter 0.25s ease-out;
+}
+.sbox-leave {
+  animation: sboxLeave 0.25s ease-in forwards;
+}
+@keyframes sboxEnter {
+  from { opacity: 0; transform: scale(0.85) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes sboxLeave {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.85) translateY(-8px); }
 }
 
 #varsPanel { flex-shrink: 0; max-height: 45%; }
