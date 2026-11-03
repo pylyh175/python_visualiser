@@ -119,7 +119,10 @@ function syncVisualizeEnabled() {
 // live execution.
 function applyLock() {
   els.textarea.readOnly = locked;
-  els.edit.disabled = !locked || runInProgress;
+  // Edit button is only disabled while a run is in progress. After completion
+  // (locked=false, runInProgress=false) it becomes enabled so the user can
+  // start a new run. The hint reflects the lock state.
+  els.edit.disabled = runInProgress;
   els.hint.textContent = locked ? 'Code locked — click ✎ Edit to modify' : HINT_DEFAULT;
 }
 
@@ -1551,14 +1554,10 @@ els.visualize.addEventListener('click', async () => {
     render();
   } finally {
     runInProgress = false;
-    // A failed run (syntax/runtime/internal error or a limit stop) drops the
-    // user straight into edit mode, but KEEPS the error display — the red
-    // buggy-line highlight, the error in the output panel, and the trace
-    // stay until the user actually starts editing (reset then, in the input
-    // listener) or clicks Edit. Successful runs stay locked as before.
-    if (failed) {
-      locked = false;
-    }
+    // Both failed and successful runs unlock the editor so the Edit button
+    // is enabled. The trace stays navigable (playback controls live) until
+    // the user actually starts editing — the input listener then resets.
+    locked = false;
     syncVisualizeEnabled();
     applyLock();
     els.status.textContent = 'Python ready ✓';
