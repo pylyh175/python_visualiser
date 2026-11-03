@@ -377,6 +377,45 @@ textarea[readonly] {
 .tn-done { color: #6ee7a0; }
 .tn-error { color: #fca5a5; font-weight: 600; }
 .tn-more { color: #9ca3af; font-style: italic; }
+#outputBody .info { color: #9ca3af; }
+
+/* Stack visualiser panel (2026-11-03-stack-visualiser-design.md): cells
+   bottom→top with the top of the stack at the TOP of the list, like a
+   restaurant plate stack drawn downwards. The top cell carries an orange
+   border; peek outlines it; a cell born on the current step rises in. */
+.outtabs button[hidden] { display: none; }
+#stackBody {
+  flex: 1;
+  min-height: 80px;
+  overflow: auto;
+  padding: 10px 12px;
+  background: #111827;
+  color: #f9fafb;
+}
+.sstrip { font-family: var(--mono); font-size: 12px; color: #9ca3af; }
+.scol { margin-top: 8px; }
+.scell {
+  width: max-content;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  background: #1f2937;
+  padding: 4px 10px;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.scell.sc-top { border-color: var(--orange); }
+.scell.sc-peek { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.45); }
+.scell.sc-more { border-style: dashed; background: transparent; color: #9ca3af; }
+.scell.sc-in { animation: stackIn 0.25s ease-out; }
+.snone { font-family: var(--mono); font-size: 13px; color: #9ca3af; }
+@keyframes stackIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
 
 #varsPanel { flex-shrink: 0; max-height: 45%; }
 #varsBody {
