@@ -96,11 +96,22 @@ function parseArrayValue(v) {
 export function renderTwoPointers() {
   if (!state.steps.length) { hideOutTabsAll('two-pointers'); return; }
 
+  // Auto-advance to first step with valid two-pointer detection on initial load
+  // (after a run completes, idx=0 but pointers may not be initialized yet)
+  if (state.idx === 0 && !state.userTab) {
+    for (let i = 0; i < state.steps.length; i++) {
+      if (detectTwoPointers(state.steps[i]?.locals || {})) {
+        state.idx = i;
+        break;
+      }
+    }
+  }
+
   const locals = state.steps[state.idx]?.locals || {};
   const detection = detectTwoPointers(locals);
 
   if (!detection) {
-    // No two pointers detected — show info
+    // No two pointers detected at current step — show info with step hint
     els.outTabs.hidden = false;
     els.outTitle.hidden = true;
     els.tabTwoPtrs.hidden = false;
@@ -108,7 +119,7 @@ export function renderTwoPointers() {
     els.output.hidden = true;
     els.twoPtrsBody.innerHTML = `
       <div class="tp-strip">Select "Two Pointers" mode and run code with two indices on the same array.</div>
-      <div class="tp-empty">No two-pointer pattern detected in current scope.</div>
+      <div class="tp-empty">No two-pointer pattern detected at this step. Use Prev/Next to navigate.</div>
     `;
     return;
   }
