@@ -165,6 +165,22 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   position: relative;
   display: inline-flex;
 }
+/* Hover bridge: the panel sits 4px below the trigger (visual offset), but an
+   absolute element lives OUT of flow — that 4px band belongs to no box, so a
+   slow pointer crossing it loses :hover and the menu snaps shut mid-journey
+   (fast flicks skip the band entirely, hence the flaky "closes before I can
+   choose" report). This invisible strip extends the wrapper's hover area over
+   the gap: same 4px look, unbroken pointer path — the same fix the submenu
+   got (internal offset, grill requirement 5), expressed as a bridge because
+   the panel's background must start 4px down. */
+.dsa-dropdown::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 4px;
+}
 .dsa-trigger {
   display: flex;
   align-items: center;
