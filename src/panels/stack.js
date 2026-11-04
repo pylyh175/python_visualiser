@@ -157,7 +157,7 @@ function parseInstanceAttr(instanceStr, attrName) {
 
 export function renderStack() {
   const det = state.stackScan;
-  if (!det || !det.found) { hideOutTabsAll('stack'); return; }
+  if (!det || !det.found) { hideOutTabsAll(state.dsaMode); return; }
   els.outTabs.hidden = false;
   els.outTitle.hidden = true;
 

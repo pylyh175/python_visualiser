@@ -28,9 +28,11 @@ export const els = {
   tabTree: document.getElementById('tabTree'),
   tabStack: document.getElementById('tabStack'),
   tabTwoPtrs: document.getElementById('tabTwoPtrs'),
+  tabReverse: document.getElementById('tabReverse'),
   treeBody: document.getElementById('treeBody'),
   stackBody: document.getElementById('stackBody'),
   twoPtrsBody: document.getElementById('twoPtrsBody'),
+  reverseBody: document.getElementById('reverseBody'),
   // DSA dropdown (custom)
   dsaTrigger: document.getElementById('dsaTrigger'),
   dsaOptions: document.getElementById('dsaOptions'),

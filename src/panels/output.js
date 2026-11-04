@@ -10,6 +10,7 @@ import { renderVars } from './variables.js';
 import { renderTree, recursionSeenUpTo } from './recursion.js';
 import { renderStack } from './stack.js';
 import { renderTwoPointersPanel } from './twoPointers.js';
+import { renderReversePanel } from './reverse.js';
 import { hideOutTabsAll } from './shared.js';
 
 // Master render: editor mirror, playback controls, all output-panel bodies.
@@ -73,27 +74,34 @@ export function renderOutput() {
 
 // The panel shows one tab FAMILY per DSA mode: recursion → Output|Recursion
 // (renderTree), stack → Output|Stack (renderStack), two-pointers →
-// Output|Two Pointers (renderTwoPointersPanel), blank mode or no trace →
-// plain output without a tab bar. Family switching (mode change on a live
-// trace) resets the manual tab choice.
+// Output|Two Pointers (renderTwoPointersPanel) or — when the reverse-array
+// sub-mode id is selected — Output|Reverse Array/String (renderReversePanel);
+// blank mode or no trace → plain output without a tab bar. Any DSA change
+// (family OR sub-mode — outFam now stores the full id) resets the manual tab
+// choice.
 export function renderOutPanel() {
   const fam = dsaFamily(state.dsaMode);
-  if (fam !== state.outFam) {
-    state.outFam = fam;
+  if (state.outFam !== state.dsaMode) {
+    state.outFam = state.dsaMode;
     state.outTab = 'out'; state.userTab = false;
     state.treeAnnounced = false; state.stackAnnounced = false;
+    state.reverseAnnounced = false;
   }
+  const isReverse = state.dsaMode === 'two-pointers.reverse-array-string';
   els.tabTree.hidden = fam !== 'recursion';
   els.tabStack.hidden = fam !== 'stack';
-  els.tabTwoPtrs.hidden = fam !== 'two-pointers';
+  els.tabTwoPtrs.hidden = fam !== 'two-pointers' || isReverse;
+  els.tabReverse.hidden = fam !== 'two-pointers' || !isReverse;
   els.treeBody.hidden = fam !== 'recursion';
   els.stackBody.hidden = fam !== 'stack';
-  els.twoPtrsBody.hidden = fam !== 'two-pointers';
+  els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse;
+  els.reverseBody.hidden = fam !== 'two-pointers' || !isReverse;
   if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'two-pointers')) {
-    hideOutTabsAll(fam);
+    hideOutTabsAll(state.dsaMode);
     return;
   }
   if (fam === 'stack') renderStack();
+  else if (isReverse) renderReversePanel();
   else if (fam === 'two-pointers') renderTwoPointersPanel();
   else renderTree();
 }
@@ -115,6 +123,11 @@ els.tabStack.addEventListener('click', () => {
 });
 els.tabTwoPtrs.addEventListener('click', () => {
   state.outTab = 'two-pointers';
+  if (state.steps.length) state.userTab = true;
+  renderOutPanel();
+});
+els.tabReverse.addEventListener('click', () => {
+  state.outTab = 'reverse';
   if (state.steps.length) state.userTab = true;
   renderOutPanel();
 });

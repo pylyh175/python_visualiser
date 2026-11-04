@@ -22,7 +22,9 @@ function isArrayLike(v) {
 
 // Scan the current step's locals for two-pointer candidates.
 // Returns { arrName, leftName, rightName, arrValue, leftIdx, rightIdx } or null.
-function detectTwoPointers(locals) {
+// Exported: the per-problem two-pointers tab visualisers (reverse.js, …)
+// reuse the exact same detection instead of forking heuristics.
+export function detectTwoPointers(locals) {
   const entries = Object.entries(locals || {});
   // Find all array-like variables
   const arrays = entries.filter(([_, v]) => isArrayLike(v));
@@ -83,8 +85,9 @@ function detectTwoPointers(locals) {
   return null;
 }
 
-// Parse array value from tracer's serialized format
-function parseArrayValue(v) {
+// Parse array value from tracer's serialized format (exported for the
+// per-problem tab visualisers, like detectTwoPointers).
+export function parseArrayValue(v) {
   if (Array.isArray(v)) return v;
   if (typeof v === 'string') {
     try {
@@ -95,7 +98,7 @@ function parseArrayValue(v) {
 }
 
 export function renderTwoPointers() {
-  if (!state.steps.length) { hideOutTabsAll('two-pointers'); return; }
+  if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
 
   const locals = state.steps[state.idx]?.locals || {};
   const detection = detectTwoPointers(locals);
@@ -136,7 +139,7 @@ function renderTwoPointersPanelContent(detection) {
 
   const { arrName, arrValue, leftName, rightName, leftIdx, rightIdx } = detection;
   const arr = parseArrayValue(arrValue);
-  if (!arr) { hideOutTabsAll('two-pointers'); return; }
+  if (!arr) { hideOutTabsAll(state.dsaMode); return; }
 
   const len = arr.length;
   const visLen = Math.min(len, TWOPTR_VIS_CAP);

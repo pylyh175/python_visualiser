@@ -32,6 +32,9 @@ export const DSA_MODES = [
   { id: 'two-pointers', label: 'Two Pointers',        status: 'ready', subModes: [
     { id: 'two-pointers.remove-duplicate', label: 'Remove Duplicate' },
     { id: 'two-pointers.two-sum',          label: 'Two Sum' },
+    { id: 'two-pointers.reverse-array-string'   , label: 'Reverse Array/String'},
+    { id: 'two-pointers.valid-palindrome', label: 'Valid Palindrome'},
+    { id: 'two-pointers.container-with-most-water',  label: 'Container With Most Water' }
   ] },
   { id: 'queue',        label: 'Queue',               status: 'planned' },
   { id: 'linked-list',  label: 'Linked List',         status: 'planned' },

@@ -20,14 +20,15 @@ export const state = {
   runInProgress: false,   // a Visualize run is currently executing
   locked: false,          // editor locked during playback until handback/edit
 
-  // Output-panel tab family (recursion tree / stack visualiser)
+  // Output-panel tab family (recursion tree / stack / two-pointers visualisers)
   dsaMode: 'none',        // current DSA id: 'none' | 'recursion' | ... | 'two-pointers.two-sum'
-  outTab: 'out',          // active tab: 'out' | 'tree' | 'stack'
+  outTab: 'out',          // active tab: 'out' | 'tree' | 'stack' | 'two-pointers' | 'reverse'
   userTab: false,         // the user picked a tab — keep it for this run
   treeAnnounced: false,   // the one-time auto-switch to the tree happened
   stackAnnounced: false,  // the one-time auto-switch to the stack panel
+  reverseAnnounced: false,// the one-time auto-switch to the reverse panel
   stackScan: null,        // scanStackSource() result for the running code
-  outFam: null,           // which tab family the panel showed last render
+  outFam: null,           // which DSA mode the panel rendered last (full id; sub-mode switches also reset the tab choice)
 
   // Editor mirror / caret / glide internals
   mirrorSpacer: null,     // hidden element keeping the mirror as scrollable as the textarea

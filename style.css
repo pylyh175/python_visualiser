@@ -663,6 +663,16 @@ textarea[readonly] {
 .tp-left::after { border-top-color: #60a5fa; }
 .tp-right::after { border-top-color: #f87171; }
 .tp-both::after { border-top-color: #a78bfa; }
+/* Swap pulse (Reverse tab): the cell whose value just changed vs. the
+   previous recorded step — ground truth, detected in panels/reverse.js. */
+.tp-swap {
+  animation: tpSwap 0.45s ease;
+}
+@keyframes tpSwap {
+  0%   { background: #fbbf24; color: #111; transform: scale(1); }
+  40%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
 .tp-enter {
   animation: tpEnter 0.2s ease-out;
 }
