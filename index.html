@@ -19,7 +19,13 @@
     <div id="toolbar">
       <button id="btnVisualize" disabled>▶ Visualize</button>
       <button id="btnEdit" disabled>✎ Edit</button>
-      <select id="dsaMode" aria-label="Data structure or algorithm to visualise" title="What kind of code you're visualising — Recursion is automatic; others are planned"></select>
+      <div class="dsa-dropdown" id="dsaDropdown" role="combobox" aria-label="Data structure or algorithm to visualise" aria-expanded="false" aria-haspopup="listbox">
+        <button type="button" class="dsa-trigger" id="dsaTrigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Select algorithm">
+          <span id="dsaLabel">(none / normal run)</span>
+          <span class="dsa-caret">▾</span>
+        </button>
+        <ul class="dsa-options" id="dsaOptions" role="listbox" hidden></ul>
+      </div>
       <span class="hint">Type or paste Python code, then click Visualize.</span>
     </div>
     <div class="editor">

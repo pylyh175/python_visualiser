@@ -31,5 +31,8 @@ export const els = {
   treeBody: document.getElementById('treeBody'),
   stackBody: document.getElementById('stackBody'),
   twoPtrsBody: document.getElementById('twoPtrsBody'),
-  dsaMode: document.getElementById('dsaMode'),
+  // DSA dropdown (custom)
+  dsaTrigger: document.getElementById('dsaTrigger'),
+  dsaOptions: document.getElementById('dsaOptions'),
+  dsaLabel: document.getElementById('dsaLabel'),
 };

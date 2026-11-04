@@ -173,6 +173,150 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 #dsaMode:disabled { opacity: 0.5; cursor: not-allowed; }
 #dsaMode:focus { outline: none; border-color: var(--accent); }
 
+/* ═══════════════ DSA Dropdown with Hover Submenu ═══════════════ */
+.dsa-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+.dsa-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px 4px 6px;
+  max-width: 220px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsa-trigger:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.dsa-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dsa-trigger:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.dsa-caret {
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.dsa-dropdown.open .dsa-caret {
+  transform: rotate(180deg);
+}
+.dsa-options {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  padding: 4px 0;
+  margin: 0;
+  list-style: none;
+  z-index: 100;
+}
+.dsa-options li {
+  position: relative;
+}
+.dsa-options button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  font: 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+.dsa-options button:hover,
+.dsa-options button:focus {
+  background: var(--bg);
+  outline: none;
+}
+.dsa-options button .sub-caret {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+}
+/* Submenu */
+.dsa-submenu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  min-width: 180px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  padding: 4px 0;
+  margin: -4px 0 0 4px;
+  list-style: none;
+  z-index: 101;
+  /* DEBUG: make visible by default for testing */
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
+}
+.dsa-options li:hover > .dsa-submenu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+/* Main dropdown hover behavior */
+.dsa-dropdown:hover .dsa-options,
+.dsa-dropdown.open .dsa-options {
+  display: block;
+}
+.dsa-dropdown:hover .dsa-caret,
+.dsa-dropdown.open .dsa-caret {
+  transform: rotate(180deg);
+}
+.dsa-options {
+  display: none;
+}
+
+/* Keep open when hovering over options */
+.dsa-options:hover {
+  display: block;
+}
+.dsa-submenu button {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.dsa-submenu button:hover,
+.dsa-submenu button:focus {
+  background: var(--bg);
+}
+.dsa-options li.has-submenu > button::after {
+  content: '▸';
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+}
+.dsa-options[hidden] { display: none; }
+
 .editor {
   flex: 1;
   display: flex;

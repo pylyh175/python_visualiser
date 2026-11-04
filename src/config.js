@@ -24,11 +24,15 @@ export const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 // as usual). (none) is the blank default: nothing chosen, the code runs and
 // displays normally. Each future DSA registers one entry here — and, later,
 // its own visualiser module against the same id.
+// Sub-modes use dot notation: parent.submode (e.g., 'two-pointers.remove-duplicate')
 export const DSA_MODES = [
   { id: 'none',         label: '(none / normal run)', status: 'ready' },
   { id: 'recursion',    label: 'Recursion',           status: 'ready' },
   { id: 'stack',        label: 'Stack',               status: 'ready' },
-  { id: 'two-pointers', label: 'Two Pointers',        status: 'ready' },
+  { id: 'two-pointers', label: 'Two Pointers',        status: 'ready', subModes: [
+    { id: 'two-pointers.remove-duplicate', label: 'Remove Duplicate' },
+    { id: 'two-pointers.two-sum',          label: 'Two Sum' },
+  ] },
   { id: 'queue',        label: 'Queue',               status: 'planned' },
   { id: 'linked-list',  label: 'Linked List',         status: 'planned' },
 ];

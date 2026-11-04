@@ -11,7 +11,7 @@ import { HINT_DEFAULT } from './config.js';
 // attach to modes, dangerous.
 export function syncVisualizeEnabled() {
   els.visualize.disabled = state.runInProgress || !els.textarea.value.trim();
-  els.dsaMode.disabled = state.runInProgress;
+  els.dsaTrigger.disabled = state.runInProgress;
 }
 
 // Apply the editor lock: readOnly blocks direct typing (all programmatic
