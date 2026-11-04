@@ -26,9 +26,15 @@ export function buildDsaMenu() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = mode.label + suffix;
-    // The parent row stays selectable (grilled: Q4b) — clicking it picks the
-    // generic mode (e.g. plain auto-detected 'two-pointers') exactly as today.
-    btn.dataset.value = mode.id;
+    // Pure folders (grilled 2026-11-05, Q1–Q3: the 'DSA' grouping) carry no
+    // value — clicking them does nothing; hover/focus still expands the
+    // submenu. Selectable parents (grilled 2026-11-04 Q4b, e.g.
+    // 'two-pointers') keep their generic mode: clicking it picks it as today.
+    if (!mode.folder) {
+      btn.dataset.value = mode.id;
+    } else {
+      li.classList.add('dsa-folder');
+    }
     li.appendChild(btn);
 
     if (mode.subModes && mode.subModes.length) {
@@ -40,7 +46,9 @@ export function buildDsaMenu() {
         const subLi = document.createElement('li');
         const subBtn = document.createElement('button');
         subBtn.type = 'button';
-        subBtn.textContent = sub.label;
+        // Sub-mode leaves carry their own suffix (Q5): Queue / Linked List
+        // read '(planned)' in the menu, Stack reads plain.
+        subBtn.textContent = sub.label + (sub.status === 'planned' ? ' (planned)' : '');
         subBtn.dataset.value = sub.id;
         subLi.appendChild(subBtn);
         submenu.appendChild(subLi);

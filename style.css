@@ -255,6 +255,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   background: var(--bg);
   outline: none;
 }
+/* A pure folder row (grilled 2026-11-05 Q3) expands on hover/focus but has
+   nothing to select: no pointer cursor. */
+.dsa-options li.dsa-folder > button { cursor: default; }
 /* The currently selected id is highlighted (generic parent and sub-modes are
    distinct selections — picking 'Two Sum' does not light up 'Two Pointers'). */
 .dsa-options button.active {

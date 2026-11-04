@@ -25,10 +25,17 @@ export const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 // displays normally. Each future DSA registers one entry here — and, later,
 // its own visualiser module against the same id.
 // Sub-modes use dot notation: parent.submode (e.g., 'two-pointers.remove-duplicate')
+// EXCEPT under pure display folders (folder: true, e.g. the 2026-11-05 'DSA'
+// folder): their sub-modes keep their own unsuffixed ids ('stack', …) so every
+// family check / visualiser gate keeps working unchanged.
 export const DSA_MODES = [
   { id: 'none',         label: '(none / normal run)', status: 'ready' },
+  { id: 'dsa',          label: 'DSA', folder: true,   status: 'ready', subModes: [
+    { id: 'stack',       label: 'Stack',       status: 'ready' },
+    { id: 'queue',       label: 'Queue',       status: 'planned' },
+    { id: 'linked-list', label: 'Linked List', status: 'planned' },
+  ] },
   { id: 'recursion',    label: 'Recursion',           status: 'ready' },
-  { id: 'stack',        label: 'Stack',               status: 'ready' },
   { id: 'two-pointers', label: 'Two Pointers',        status: 'ready', subModes: [
     { id: 'two-pointers.remove-duplicate', label: 'Remove Duplicate' },
     { id: 'two-pointers.two-sum',          label: 'Two Sum' },
@@ -36,8 +43,6 @@ export const DSA_MODES = [
     { id: 'two-pointers.valid-palindrome', label: 'Valid Palindrome'},
     { id: 'two-pointers.container-with-most-water',  label: 'Container With Most Water' }
   ] },
-  { id: 'queue',        label: 'Queue',               status: 'planned' },
-  { id: 'linked-list',  label: 'Linked List',         status: 'planned' },
 ];
 export const DSA_STORE_KEY = 'vizDsaMode';
 
