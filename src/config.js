@@ -30,11 +30,6 @@ export const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 // family check / visualiser gate keeps working unchanged.
 export const DSA_MODES = [
   { id: 'none',         label: '(none / normal run)', status: 'ready' },
-  { id: 'dsa',          label: 'DSA', folder: true,   status: 'ready', subModes: [
-    { id: 'stack',       label: 'Stack',       status: 'ready' },
-    { id: 'queue',       label: 'Queue',       status: 'planned' },
-    { id: 'linked-list', label: 'Linked List', status: 'planned' },
-  ] },
   { id: 'recursion',    label: 'Recursion',           status: 'ready' },
   { id: 'two-pointers', label: 'Two Pointers',        status: 'ready', subModes: [
     { id: 'two-pointers.remove-duplicate', label: 'Remove Duplicate' },
@@ -43,6 +38,11 @@ export const DSA_MODES = [
     { id: 'two-pointers.valid-palindrome', label: 'Valid Palindrome'},
     { id: 'two-pointers.container-with-most-water',  label: 'Container With Most Water' }
   ] },
+  { id: 'dsa',          label: 'DSA', folder: true,   status: 'ready', subModes: [
+    { id: 'stack',       label: 'Stack',       status: 'ready' },
+    { id: 'queue',       label: 'Queue',       status: 'planned' },
+    { id: 'linked-list', label: 'Linked List', status: 'planned' },
+  ] }
 ];
 export const DSA_STORE_KEY = 'vizDsaMode';
 
