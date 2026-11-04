@@ -588,6 +588,19 @@ textarea[readonly] {
   background: #111827;
   color: #f9fafb;
 }
+/* Reverse + Palindrome visualiser bodies: the same black terminal chrome as
+   #outputBody / #treeBody / #stackBody / #twoPtrsBody. Without it these fall
+   back to the .panel white (--panel: #ffffff) — the white two-pointers
+   sub-mode tab bodies (bug report 2026-11-05). */
+#reverseBody,
+#palindromeBody {
+  flex: 1;
+  min-height: 80px;
+  overflow: hidden;
+  padding: 10px 12px;
+  background: #111827;
+  color: #f9fafb;
+}
 .tp-strip {
   display: flex;
   flex-wrap: wrap;
