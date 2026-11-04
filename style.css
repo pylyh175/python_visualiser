@@ -673,6 +673,32 @@ textarea[readonly] {
   40%  { transform: scale(1.12); }
   100% { transform: scale(1); }
 }
+/* Valid Palindrome tab additions (2026-11-05-valid-palindrome-submode-design.md).
+   Cells reuse .tp-*; only the palindrome-specific presentation is new. */
+.pal-array { flex-wrap: nowrap; align-items: center; }
+.pal-dim { opacity: 0.35; }
+.pal-gap {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  padding: 0 6px;
+}
+.pal-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.pal-match { color: #4ade80; border-color: #4ade80; }
+.pal-diff { color: #fbbf24; border-color: #fbbf24; }
+.pal-chip {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+.pal-chip-true { color: #4ade80; background: rgba(74, 222, 128, 0.12); }
+.pal-chip-false { color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
 .tp-enter {
   animation: tpEnter 0.2s ease-out;
 }

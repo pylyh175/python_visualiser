@@ -11,6 +11,7 @@ import { renderTree, recursionSeenUpTo } from './recursion.js';
 import { renderStack } from './stack.js';
 import { renderTwoPointersPanel } from './twoPointers.js';
 import { renderReversePanel } from './reverse.js';
+import { renderPalindromePanel } from './palindrome.js';
 import { hideOutTabsAll } from './shared.js';
 
 // Master render: editor mirror, playback controls, all output-panel bodies.
@@ -86,22 +87,27 @@ export function renderOutPanel() {
     state.outTab = 'out'; state.userTab = false;
     state.treeAnnounced = false; state.stackAnnounced = false;
     state.reverseAnnounced = false;
+    state.palindromeAnnounced = false;
   }
   const isReverse = state.dsaMode === 'two-pointers.reverse-array-string';
+  const isPalindrome = state.dsaMode === 'two-pointers.valid-palindrome';
   els.tabTree.hidden = fam !== 'recursion';
   els.tabStack.hidden = fam !== 'stack';
-  els.tabTwoPtrs.hidden = fam !== 'two-pointers' || isReverse;
+  els.tabTwoPtrs.hidden = fam !== 'two-pointers' || isReverse || isPalindrome;
   els.tabReverse.hidden = fam !== 'two-pointers' || !isReverse;
+  els.tabPalindrome.hidden = fam !== 'two-pointers' || !isPalindrome;
   els.treeBody.hidden = fam !== 'recursion';
   els.stackBody.hidden = fam !== 'stack';
-  els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse;
+  els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse || isPalindrome;
   els.reverseBody.hidden = fam !== 'two-pointers' || !isReverse;
+  els.palindromeBody.hidden = fam !== 'two-pointers' || !isPalindrome;
   if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'two-pointers')) {
     hideOutTabsAll(state.dsaMode);
     return;
   }
   if (fam === 'stack') renderStack();
   else if (isReverse) renderReversePanel();
+  else if (isPalindrome) renderPalindromePanel();
   else if (fam === 'two-pointers') renderTwoPointersPanel();
   else renderTree();
 }
@@ -128,6 +134,11 @@ els.tabTwoPtrs.addEventListener('click', () => {
 });
 els.tabReverse.addEventListener('click', () => {
   state.outTab = 'reverse';
+  if (state.steps.length) state.userTab = true;
+  renderOutPanel();
+});
+els.tabPalindrome.addEventListener('click', () => {
+  state.outTab = 'palindrome';
   if (state.steps.length) state.userTab = true;
   renderOutPanel();
 });

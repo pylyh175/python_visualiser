@@ -9,11 +9,12 @@ import { hideOutTabsAll } from './shared.js';
 const TWOPTR_VIS_CAP = 30;  // max array elements displayed
 
 // Name heuristics for pointer-like variables
-const PTR_NAME_PAIRS = [
+const PTR_NAME_PAIRS = [  // exported: per-problem tab visualisers share the naming heuristics
   ['left', 'right'], ['l', 'r'], ['start', 'end'], ['i', 'j'],
   ['slow', 'fast'], ['low', 'high'], ['lo', 'hi'], ['begin', 'end'],
   ['first', 'last'], ['head', 'tail'],
 ];
+export { PTR_NAME_PAIRS };
 
 // Detect if a value looks like an array/list
 function isArrayLike(v) {

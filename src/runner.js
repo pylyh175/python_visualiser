@@ -19,6 +19,7 @@ export function resetRun() {
   state.outTab = 'out'; state.userTab = false;
   state.treeAnnounced = false; state.stackAnnounced = false;
   state.reverseAnnounced = false;
+  state.palindromeAnnounced = false;
   state.stackScan = null;
   render();
 }

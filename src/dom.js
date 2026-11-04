@@ -29,10 +29,12 @@ export const els = {
   tabStack: document.getElementById('tabStack'),
   tabTwoPtrs: document.getElementById('tabTwoPtrs'),
   tabReverse: document.getElementById('tabReverse'),
+  tabPalindrome: document.getElementById('tabPalindrome'),
   treeBody: document.getElementById('treeBody'),
   stackBody: document.getElementById('stackBody'),
   twoPtrsBody: document.getElementById('twoPtrsBody'),
   reverseBody: document.getElementById('reverseBody'),
+  palindromeBody: document.getElementById('palindromeBody'),
   // DSA dropdown (custom)
   dsaTrigger: document.getElementById('dsaTrigger'),
   dsaOptions: document.getElementById('dsaOptions'),

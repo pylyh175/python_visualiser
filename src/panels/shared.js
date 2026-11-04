@@ -15,8 +15,10 @@ export function hideOutTabsAll(mode) {
   els.stackBody.hidden = true;
   els.twoPtrsBody.hidden = true;
   els.reverseBody.hidden = true;
+  els.palindromeBody.hidden = true;
   state.outTab = 'out'; state.userTab = false;
   state.treeAnnounced = false; state.stackAnnounced = false;
   state.reverseAnnounced = false;
+  state.palindromeAnnounced = false;
   state.outFam = mode || 'none';
 }

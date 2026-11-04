@@ -22,11 +22,12 @@ export const state = {
 
   // Output-panel tab family (recursion tree / stack / two-pointers visualisers)
   dsaMode: 'none',        // current DSA id: 'none' | 'recursion' | ... | 'two-pointers.two-sum'
-  outTab: 'out',          // active tab: 'out' | 'tree' | 'stack' | 'two-pointers' | 'reverse'
+  outTab: 'out',          // active tab: 'out' | 'tree' | 'stack' | 'two-pointers' | 'reverse' | 'palindrome'
   userTab: false,         // the user picked a tab — keep it for this run
   treeAnnounced: false,   // the one-time auto-switch to the tree happened
   stackAnnounced: false,  // the one-time auto-switch to the stack panel
   reverseAnnounced: false,// the one-time auto-switch to the reverse panel
+  palindromeAnnounced: false, // the one-time auto-switch to the palindrome panel
   stackScan: null,        // scanStackSource() result for the running code
   outFam: null,           // which DSA mode the panel rendered last (full id; sub-mode switches also reset the tab choice)
 
