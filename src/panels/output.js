@@ -5,6 +5,7 @@ import { els } from '../dom.js';
 import { escapeHtml } from '../utils.js';
 import { renderEditor } from '../editor/render.js';
 import { ensureStepVisible } from '../navigation/steps.js';
+import { dsaFamily } from '../config.js';
 import { renderVars } from './variables.js';
 import { renderTree, recursionSeenUpTo } from './recursion.js';
 import { renderStack } from './stack.js';
@@ -58,12 +59,12 @@ export function renderOutput() {
   // recursion exists anywhere in it. (An earlier prefix scan 0..idx printed
   // the line on the early, pre-first-call steps of clearly recursive code —
   // ground-truth probe: steps 0-3 of fib(6) showed it right after the run.)
-  if (els.dsaLabel.textContent === 'Recursion' && !recursionSeenUpTo(state.steps.length - 1)) {
+  if (dsaFamily(state.dsaMode) === 'recursion' && !recursionSeenUpTo(state.steps.length - 1)) {
     text += '<span class="err">No recursion detected in this code.</span>';
   }
   // Stack mode, muted (not an error) note when no qualifying class was found
   // in the run's source (2026-11-03-stack-visualiser-design.md, call 5).
-  if (els.dsaLabel.textContent === 'Stack' && state.stackScan && !state.stackScan.found) {
+  if (dsaFamily(state.dsaMode) === 'stack' && state.stackScan && !state.stackScan.found) {
     text += '<span class="info">No Stack found — needs a class with push() and pop().</span>';
   }
   els.output.innerHTML = text || '<span style="color:#9ca3af">(no output yet)</span>';
@@ -76,7 +77,7 @@ export function renderOutput() {
 // plain output without a tab bar. Family switching (mode change on a live
 // trace) resets the manual tab choice.
 export function renderOutPanel() {
-  const fam = els.dsaLabel.textContent || 'none';
+  const fam = dsaFamily(state.dsaMode);
   if (fam !== state.outFam) {
     state.outFam = fam;
     state.outTab = 'out'; state.userTab = false;

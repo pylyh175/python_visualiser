@@ -2,7 +2,7 @@
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
-import { TREE_NODE_CAP } from '../config.js';
+import { TREE_NODE_CAP, dsaFamily } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
 import { hideOutTabsAll } from './shared.js';
 
@@ -72,7 +72,7 @@ export function renderTree() {
   // rewinding before the first recursive step hides the tabs again
   // (2026-11-03-dsa-mode-gating-design.md). Nested user calls (methods or
   // helpers at chain depth ≥ 2) are not recursion and keep the tabs hidden.
-  const recursive = els.dsaLabel.textContent === 'Recursion' && recursionSeenUpTo(state.idx);
+  const recursive = dsaFamily(state.dsaMode) === 'recursion' && recursionSeenUpTo(state.idx);
   if (!recursive) {
     els.outTabs.hidden = true;
     els.outTitle.hidden = false;
@@ -86,7 +86,7 @@ export function renderTree() {
   // Once the current chain starts re-entering code, show the tree (first time
   // only — after that a manual tab choice is sticky until the run is reset).
   const cur = state.steps[state.idx].stack || [];
-  if (els.dsaLabel.textContent === 'Recursion' && !state.userTab && !state.treeAnnounced && chainIsRecursive(cur)) {
+  if (dsaFamily(state.dsaMode) === 'recursion' && !state.userTab && !state.treeAnnounced && chainIsRecursive(cur)) {
     state.treeAnnounced = true;
     state.outTab = 'tree';
   }

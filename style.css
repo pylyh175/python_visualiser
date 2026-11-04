@@ -154,26 +154,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   font-weight: 600;
 }
 #btnVisualize:hover:not(:disabled) { background: #1d4ed8; }
-.hint { font-size: 12px; color: var(--muted); }
-/* DSA mode select: quiet, matches the toolbar's muted secondary controls, so
-   it reads as context rather than an action. Keeps the row layout natural
-   (buttons left, select in the middle, hint pushed to the right edge by the
-   anti-flank margin). */
-#dsaMode {
-  font: 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 6px;
-  max-width: 180px;
-  margin-left: auto;
-  cursor: pointer;
-}
-#dsaMode:disabled { opacity: 0.5; cursor: not-allowed; }
-#dsaMode:focus { outline: none; border-color: var(--accent); }
+.hint { font-size: 12px; color: var(--muted); margin-left: auto; }
 
-/* ═══════════════ DSA Dropdown with Hover Submenu ═══════════════ */
+/* ═══════════════ DSA dropdown (hierarchical, hover-driven) ═══════════════
+   The trigger is a quiet context control matching the toolbar's secondary
+   buttons. Open/close is pure CSS: :hover for the pointer, :focus-within for
+   the keyboard. JS never touches visibility — it selects, persists and
+   re-renders only (2026-11-04 dropdown grill, Q3). */
 .dsa-dropdown {
   position: relative;
   display: inline-flex;
@@ -191,43 +178,44 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   max-width: 220px;
   cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.dsa-trigger:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-.dsa-trigger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.dsa-trigger:focus {
-  outline: none;
-  border-color: var(--accent);
-}
+.dsa-trigger:hover:not(:disabled) { border-color: var(--accent); }
+.dsa-trigger:disabled { opacity: 0.5; cursor: not-allowed; }
+.dsa-trigger:focus { outline: none; border-color: var(--accent); }
 .dsa-caret {
   font-size: 10px;
   color: var(--muted);
   transition: transform 0.15s ease;
 }
-.dsa-dropdown.open .dsa-caret {
+.dsa-dropdown:hover .dsa-caret,
+.dsa-dropdown:focus-within .dsa-caret {
   transform: rotate(180deg);
 }
+
+/* First level: closed by default, opened by pointer hover or keyboard focus.
+   NO max-height/overflow here: the submenu is a descendant of the list's
+   rows, so any overflow clipping would trap it inside the list box (it would
+   scroll the first level instead of popping out beside it). Six categories
+   never need scrolling anyway; if the registry grows tall enough to matter,
+   the fix is JS-placed positioning, not clipping (2026-11-04 layout fix). */
 .dsa-options {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  min-width: 220px;
-  max-height: 300px;
-  overflow-y: auto;
+  min-width: 200px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   padding: 4px 0;
   margin: 0;
   list-style: none;
   z-index: 100;
+  display: none;
+}
+.dsa-dropdown:hover .dsa-options,
+.dsa-dropdown:focus-within .dsa-options {
+  display: block;
 }
 .dsa-options li {
   position: relative;
@@ -251,71 +239,56 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   background: var(--bg);
   outline: none;
 }
-.dsa-options button .sub-caret {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--muted);
+/* The currently selected id is highlighted (generic parent and sub-modes are
+   distinct selections — picking 'Two Sum' does not light up 'Two Pointers'). */
+.dsa-options button.active {
+  background: var(--accent);
+  color: #fff;
 }
-/* Submenu */
-.dsa-submenu {
-  position: absolute;
-  top: 0;
-  left: 100%;
-  min-width: 180px;
-  max-height: 300px;
-  overflow-y: auto;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  padding: 4px 0;
-  margin: -4px 0 0 4px;
-  list-style: none;
-  z-index: 101;
-  /* DEBUG: make visible by default for testing */
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(0);
-  transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
-}
-.dsa-options li:hover > .dsa-submenu {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(0);
-}
-
-/* Main dropdown hover behavior */
-.dsa-dropdown:hover .dsa-options,
-.dsa-dropdown.open .dsa-options {
-  display: block;
-}
-.dsa-dropdown:hover .dsa-caret,
-.dsa-dropdown.open .dsa-caret {
-  transform: rotate(180deg);
-}
-.dsa-options {
-  display: none;
-}
-
-/* Keep open when hovering over options */
-.dsa-options:hover {
-  display: block;
-}
-.dsa-submenu button {
-  padding: 6px 12px;
-  font-size: 12px;
-}
-.dsa-submenu button:hover,
-.dsa-submenu button:focus {
-  background: var(--bg);
-}
+/* A parent row carrying a submenu gets the ▸ affordance. */
 .dsa-options li.has-submenu > button::after {
   content: '▸';
   margin-left: auto;
   font-size: 10px;
   color: var(--muted);
 }
-.dsa-options[hidden] { display: none; }
+
+/* Second level: opens to the RIGHT of the parent row, beside it — never
+   overlapping or replacing the first-level list. Positioned with zero
+   lateral gap (li spans the full option width, so left:100% touches the
+   parent row's edge); the 4px visual offset is internal padding, so the
+   hover path from ▸ into the submenu is unbroken (grill requirement 5). */
+.dsa-submenu {
+  position: absolute;
+  top: -5px;
+  left: 100%;
+  min-width: 190px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 4px 0 4px 6px;
+  margin: 0;
+  list-style: none;
+  z-index: 101;
+  display: none;
+}
+.dsa-options li:hover > .dsa-submenu,
+.dsa-options li:focus-within > .dsa-submenu {
+  display: block;
+}
+.dsa-submenu button {
+  padding: 6px 12px;
+}
+.dsa-submenu button:hover,
+.dsa-submenu button:focus {
+  background: var(--bg);
+  outline: none;
+}
+.dsa-submenu button.active {
+  background: var(--accent);
+  color: #fff;
+}
 
 .editor {
   flex: 1;

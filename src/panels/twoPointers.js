@@ -3,6 +3,7 @@
 import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml, fmtValue } from '../utils.js';
+import { dsaFamily } from '../config.js';
 import { hideOutTabsAll } from './shared.js';
 
 const TWOPTR_VIS_CAP = 30;  // max array elements displayed
@@ -178,7 +179,7 @@ function renderTwoPointersPanelContent(detection) {
 }
 
 export function renderTwoPointersPanel() {
-  const fam = els.dsaMode.value;
+  const fam = dsaFamily(state.dsaMode);
   if (fam !== 'two-pointers') {
     els.tabTwoPtrs.hidden = true;
     els.twoPtrsBody.hidden = true;

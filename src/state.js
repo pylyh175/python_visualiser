@@ -21,6 +21,7 @@ export const state = {
   locked: false,          // editor locked during playback until handback/edit
 
   // Output-panel tab family (recursion tree / stack visualiser)
+  dsaMode: 'none',        // current DSA id: 'none' | 'recursion' | ... | 'two-pointers.two-sum'
   outTab: 'out',          // active tab: 'out' | 'tree' | 'stack'
   userTab: false,         // the user picked a tab — keep it for this run
   treeAnnounced: false,   // the one-time auto-switch to the tree happened

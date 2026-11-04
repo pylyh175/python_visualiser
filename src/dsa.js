@@ -1,142 +1,105 @@
-/* ═══════════════ DSA mode dropdown with hover submenu ═══════════════ */
+/* ═══════════════ DSA mode dropdown (hierarchical, CSS-hover driven) ═══════════════ */
 
 import { state } from './state.js';
 import { els } from './dom.js';
-import { DSA_MODES, DSA_STORE_KEY } from './config.js';
+import { DSA_MODES, DSA_STORE_KEY, dsaEntryById } from './config.js';
 import { render } from './panels/output.js';
 
-// Build the custom dropdown with hover submenu from the registry.
-// index.html ships an empty wrapper, so the option list lives in exactly one place.
-// The persisted choice is restored only when it is still a known id.
-// Sub-modes use dot notation: parent.submode (e.g., 'two-pointers.remove-duplicate').
+// Build the hierarchical dropdown from the registry — index.html ships an
+// empty wrapper, so the option tree lives in exactly one place: adding a
+// future category or sub-algorithm means adding one registry entry.
+// Open/close is pure CSS (:hover for the pointer, :focus-within for the
+// keyboard — see style.css); JS handles selection, persistence and accepts
+// nothing about visibility. Mode dispatch goes through state.dsaMode (an id
+// like 'stack' or 'two-pointers.two-sum'); the trigger label is a cosmetic
+// breadcrumb only (2026-11-04 dropdown grill, Q1/Q2).
 export function buildDsaMenu() {
-  const options = document.getElementById('dsaOptions');
-  const trigger = document.getElementById('dsaTrigger');
-  const label = document.getElementById('dsaLabel');
+  const options = els.dsaOptions;
+  const trigger = els.dsaTrigger;
+  if (!options || !trigger) return;
 
-  if (!options || !trigger || !label) return;
-
-  // Clear existing options
   options.innerHTML = '';
-
-  // Build options from registry
   for (const mode of DSA_MODES) {
     const li = document.createElement('li');
+    const suffix = mode.status === 'planned' ? ' (planned)' : '';
 
-    if (mode.subModes && mode.subModes.length > 0) {
-      // Parent with submenu
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = mode.label;
-      btn.setAttribute('role', 'menuitem');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = mode.label + suffix;
+    // The parent row stays selectable (grilled: Q4b) — clicking it picks the
+    // generic mode (e.g. plain auto-detected 'two-pointers') exactly as today.
+    btn.dataset.value = mode.id;
+    li.appendChild(btn);
+
+    if (mode.subModes && mode.subModes.length) {
+      li.classList.add('has-submenu');
       btn.setAttribute('aria-haspopup', 'true');
-      li.appendChild(btn);
-
       const submenu = document.createElement('ul');
       submenu.className = 'dsa-submenu';
-      submenu.setAttribute('role', 'menu');
       for (const sub of mode.subModes) {
         const subLi = document.createElement('li');
         const subBtn = document.createElement('button');
         subBtn.type = 'button';
         subBtn.textContent = sub.label;
-        subBtn.setAttribute('role', 'menuitem');
         subBtn.dataset.value = sub.id;
         subLi.appendChild(subBtn);
         submenu.appendChild(subLi);
       }
       li.appendChild(submenu);
-      li.classList.add('has-submenu');
-    } else {
-      // Leaf option
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = mode.status === 'planned' ? mode.label + ' (planned)' : mode.label;
-      btn.setAttribute('role', 'menuitem');
-      btn.dataset.value = mode.id;
-      li.appendChild(btn);
     }
     options.appendChild(li);
   }
 
-  // Restore saved selection
+  // Restore the saved id only when it is still a known slot — a flat check
+  // that includes sub-mode ids; anything else falls back to the blank default
+  // (an entry removed from the registry must never resurrect itself).
   let saved = null;
   try { saved = localStorage.getItem(DSA_STORE_KEY); } catch (err) { /* storage unavailable */ }
-  const savedId = DSA_MODES.some((m) => m.id === saved) ? saved : 'none';
-  selectDsaOption(savedId);
+  const known = (id) => DSA_MODES.some((m) => m.id === id)
+    || DSA_MODES.some((m) => (m.subModes || []).some((s) => s.id === id));
+  selectDsaOption(known(saved) ? saved : 'none');
 
-  // Dropdown toggle - click
-  trigger.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const isOpen = !options.hidden;
-    options.hidden = !isOpen;
-    trigger.setAttribute('aria-expanded', !isOpen);
-  });
-
-  // Dropdown hover - show on hover
-  const dropdown = document.getElementById('dsaDropdown');
-  dropdown.addEventListener('mouseenter', () => {
-    options.hidden = false;
-    trigger.setAttribute('aria-expanded', 'true');
-  });
-  dropdown.addEventListener('mouseleave', (e) => {
-    // Only hide if not moving to the options
-    if (!e.relatedTarget || !options.contains(e.relatedTarget)) {
-      options.hidden = true;
-      trigger.setAttribute('aria-expanded', 'false');
-    }
-  });
-
-  // Keep open when hovering over options
-  options.addEventListener('mouseenter', () => {
-    options.hidden = false;
-    trigger.setAttribute('aria-expanded', 'true');
-  });
-  options.addEventListener('mouseleave', () => {
-    options.hidden = true;
-    trigger.setAttribute('aria-expanded', 'false');
-  });
-
-  // Option selection
+  // Selection: any leaf — top-level or sub-mode. The click handler is the only
+  // JS the menu needs; hover visibility, submenu placement and the
+  // cursor-bridge between parent row and submenu are all style.css.
   options.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-value]');
     if (!btn) return;
-    const value = btn.dataset.value;
-    selectDsaOption(value);
-    options.hidden = true;
-    trigger.setAttribute('aria-expanded', 'false');
+    selectDsaOption(btn.dataset.value);
+    trigger.focus();   // close via :focus-within dropping off the menu
   });
 
-  // Keyboard navigation
+  // Escape hands focus back to the trigger, closing BOTH levels at once.
   options.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      options.hidden = true;
-      trigger.setAttribute('aria-expanded', 'false');
-      trigger.focus();
-    }
+    if (e.key === 'Escape') trigger.focus();
   });
 }
 
-// Select a DSA option by its full ID (e.g., 'two-pointers.remove-duplicate')
+// Resolve the full id against the registry (flat, sub-modes included),
+// update state + breadcrumb label + persistence, then re-render a live trace
+// under the new mode immediately.
 function selectDsaOption(id) {
-  const mode = DSA_MODES.find((m) => m.id === id) || DSA_MODES[0];
-  const label = document.getElementById('dsaLabel');
-  if (label) label.textContent = mode.status === 'planned' ? mode.label + ' (planned)' : mode.label;
+  const entry = dsaEntryById(id);
+  state.dsaMode = entry.id;
 
-  // Persist
-  try { localStorage.setItem(DSA_STORE_KEY, mode.id); } catch (err) { /* storage unavailable */ }
-
-  // Update active state in dropdown
-  document.querySelectorAll('#dsaOptions button[data-value]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.value === id);
-  });
-
-  // Update status hint
-  const status = document.getElementById('status');
-  if (status && mode.status !== 'ready' && !state.runInProgress) {
-    status.textContent = `${mode.label} visualisation is planned — code runs as usual`;
+  // Breadcrumb: "Two Pointers › Two Sum" for sub-modes, plain label otherwise.
+  const parent = DSA_MODES.find((m) => (m.subModes || []).some((s) => s.id === entry.id));
+  if (els.dsaLabel) {
+    els.dsaLabel.textContent = parent ? `${parent.label} › ${entry.label}` : entry.label;
   }
 
-  // A live trace re-renders under the new mode immediately
+  try { localStorage.setItem(DSA_STORE_KEY, entry.id); } catch (err) { /* storage unavailable */ }
+
+  // Highlight exactly the selected id (the generic parent and its sub-modes
+  // are distinct selections — picking 'Two Sum' does not light up 'Two Pointers').
+  document.querySelectorAll('#dsaOptions button[data-value]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.value === entry.id);
+  });
+
+  if (els.status && entry.status !== 'ready' && !state.runInProgress) {
+    els.status.textContent = `${entry.label} visualisation is planned — code runs as usual`;
+  }
+
+  // A live trace re-renders under the new mode immediately.
   if (state.steps.length && !state.runInProgress) render();
 }

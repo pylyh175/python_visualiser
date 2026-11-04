@@ -38,6 +38,26 @@ export const DSA_MODES = [
 ];
 export const DSA_STORE_KEY = 'vizDsaMode';
 
+// Flat lookup across the registry, including sub-modes. An unknown id falls
+// back to the blank default so a stale persisted value can never name a
+// nonexistent mode.
+export function dsaEntryById(id) {
+  for (const m of DSA_MODES) {
+    if (m.id === id) return m;
+    for (const s of m.subModes || []) if (s.id === id) return s;
+  }
+  return DSA_MODES[0];
+}
+
+// Family of a stored id: sub-modes (dot notation, e.g. 'two-pointers.two-sum')
+// belong to their parent's family; top-level ids are their own family. Every
+// mode check in the render paths goes through this — never through the
+// trigger's label text, which is cosmetic (breadcrumb) only.
+export function dsaFamily(id = 'none') {
+  const own = dsaEntryById(id).id;
+  return own.includes('.') ? own.slice(0, own.indexOf('.')) : own;
+}
+
 // ── Recursion tree ──
 export const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary row
 
