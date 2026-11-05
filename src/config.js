@@ -70,8 +70,10 @@ export function dsaFamily(id = 'none') {
 export const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary row
 
 // ── Stack visualiser (2026-11-03-stack-visualiser-design.md) ──
-// Fixed visible capacity: the drawn figure always shows this many slots,
-// bottom-up; deeper pushes beyond it are not drawn (state strip still counts).
+// Minimum slot count: a figure with ≤ this many items always draws exactly
+// this many slots (bottom-up, dashed empties above). Beyond it the figure
+// GROWS to its content height (2026-11-05-stack-dynamic-growth-design.md,
+// grilled Q1–Q6) — this constant is the floor, not a cap.
 export const STACK_VIS_CAP = 8;
 // Multi-instance figures (2026-11-05-stack-multi-instance-design.md Q6):
 // at most this many instances draw; the rest collapse into the "+N more" chip.

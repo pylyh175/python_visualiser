@@ -617,6 +617,18 @@ textarea[readonly] {
 }
 .sbox-top { border-color: var(--orange); }
 .sbox-peek { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.45); }
+.sbox-cap {
+  width: 180px;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 2px dashed rgba(245, 158, 11, 0.55);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 16px;
+  color: #fbbf24;
+  text-align: center;
+}
 .sbox-enter {
   animation: sboxEnter 0.25s ease-out;
 }

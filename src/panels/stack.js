@@ -155,6 +155,22 @@ function parseInstanceAttr(instanceStr, attrName) {
   }
 }
 
+// The tracer records only the FIRST MAX_ITEMS (100) of a container; when the
+// live content is longer, runner.py appends the recorded fact
+// "… +N more" INSIDE the recorded array. That string is a fact about hidden
+// content, never an element: split it off so it can't draw as a phantom slot
+// — it becomes the cap-chip above the contents instead. The hidden side is
+// always the TOP (first-of-content recording policy).
+function splitTrailerMore(arr) {
+  if (!Array.isArray(arr)) return { items: arr, more: 0 };
+  const last = arr[arr.length - 1];
+  if (typeof last === 'string') {
+    const match = last.match(/^… \+(\d+) more$/);
+    if (match) return { items: arr.slice(0, -1), more: Number(match[1]) };
+  }
+  return { items: arr, more: 0 };
+}
+
 // Multi-instance (2026-11-05-stack-multi-instance-design.md, grilled Q2–Q5):
 // each instance of the tracked class becomes its own figure, in
 // first-recorded construction order. Identity is the runner's per-frame
@@ -229,10 +245,16 @@ function renderStackMulti(figs, det) {
     }
     // REAL contents: the last recorded self snapshot of THIS instance —
     // same overwrite shape as the solo path (value cells replace replay).
-    const actual = parseInstanceAttr(fig.selfStr, det.attrName);
-    const cells = actual.map((v, i) => ({ v, start: -1, id: fig.oid + ':actual-' + i }));
-    const totalSize = cells.length;
-    const visibleCells = cells.slice(-STACK_VIS_CAP);
+    const actual = splitTrailerMore(parseInstanceAttr(fig.selfStr, det.attrName));
+    const hiddenMore = actual.more;
+    const cells = actual.items.map((v, i) => ({ v, start: -1, id: fig.oid + ':actual-' + i }));
+    // Growth (2026-11-05 dynamic-growth design Q1–Q3): EVERY recorded item
+    // draws — bigger figures grow beyond the 8-slot minimum (their own
+    // growth, independent of the other figures), and the tracer's sentinel
+    // count keeps the strip honest about the hidden top (Q4/Q5).
+    const totalSize = cells.length + hiddenMore;
+    const slotRows = Math.max(STACK_VIS_CAP, cells.length);   // min slot count for ≤8
+    const visibleCells = cells;
 
     // Enter/leave per figure — the exact solo derivation (current top id
     // vs the previous step's replay top; the overwrite makes on/off-enter
@@ -254,12 +276,15 @@ function renderStackMulti(figs, det) {
     // The solo slot loop, parameterised by this figure's cells.
     const size = totalSize;
     const slotHtml = [];
-    const firstFilledRow = STACK_VIS_CAP - visibleCells.length;
-    for (let row = STACK_VIS_CAP - 1; row >= 0; row--) {
-      if (row < firstFilledRow) {
+    for (let row = slotRows - 1; row >= 0; row--) {
+      // Filled slot: row (slotRows-1) → visibleCells[0], the row above →
+      // visibleCells[1], …; beyond the content → empty slots (only ever
+      // shown while the figure is ≤ STACK_VIS_CAP — grown figures have
+      // exactly their content height, no filler).
+      const cellIdx = (slotRows - 1) - row;
+      if (cellIdx >= visibleCells.length) {
         slotHtml.push(`<div class="sbox sbox-empty"></div>`);
       } else {
-        const cellIdx = (STACK_VIS_CAP - 1) - row;
         const cell = visibleCells[cellIdx];
         const isTop = cellIdx === visibleCells.length - 1;
         const cls = ['sbox', 'sbox-filled'];
@@ -270,8 +295,15 @@ function renderStackMulti(figs, det) {
         slotHtml.push(`<div class="${cls.join(' ')}">${escapeHtml(treeValue(cell.v, 40))}</div>`);
       }
     }
+    if (hiddenMore > 0) {
+      // The chip rides above the contents: the hidden side is always the
+      // TOP (tracer records the FIRST 100), and in the column-reverse
+      // stack the last DOM child renders visually first.
+      slotHtml.push(`<div class="sbox-cap">… +${hiddenMore} more — tracer records the first 100</div>`);
+    }
 
-    const strip = [`size: ${size}`, size === 0 ? '(empty)' : 'has items'];
+    const strip = [`size: ${size}${hiddenMore > 0 ? ' (tracer-capped)' : ''}`,
+      size === 0 ? '(empty)' : 'has items'];
     if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
 
     return `<div class="sfig">`
@@ -303,6 +335,7 @@ export function renderStack() {
   let lastRet = null;
   let peekTop = false;
   let inits = 0;
+  let hiddenMore = 0;   // sentinelled top content the tracer didn't record
 
   // Derive push/pop ops for animation tracking (same as before)
   for (const rec of recs.values()) {
@@ -326,14 +359,19 @@ export function renderStack() {
     const locals = state.steps[state.idx]?.locals || {};
     const instanceStr = locals[det.instanceVar];
     if (instanceStr) {
-      const actualStack = parseInstanceAttr(instanceStr, det.attrName);
+      const actualStack = splitTrailerMore(parseInstanceAttr(instanceStr, det.attrName));
+      hiddenMore = actualStack.more;
       // Replace cell values with actual stack contents (bottom→top)
-      cells = actualStack.map((v, i) => ({ v, start: -1, id: `actual-${i}`, isPush: false }));
+      cells = actualStack.items.map((v, i) => ({ v, start: -1, id: `actual-${i}`, isPush: false }));
     }
   }
 
-  const totalSize = cells.length;
-  const visibleCells = cells.slice(-STACK_VIS_CAP);
+  // Growth (2026-11-05 dynamic-growth design Q1–Q6): EVERY recorded item
+  // draws — the figure grows beyond the 8-slot minimum instead of losing
+  // bottom items; the tracer's own 100-item cap is the only ceiling.
+  const totalSize = cells.length + hiddenMore;
+  const slotRows = Math.max(STACK_VIS_CAP, cells.length);   // ≤8 keeps exactly today's figure
+  const visibleCells = cells;
 
   // Track enter/leave by comparing with the previous step's cells.
   // A cell is "entering" if it's the top and its push started at this step.
@@ -371,23 +409,27 @@ export function renderStack() {
   const figs = collectStackFigures(state.idx, det);
   if (figs.length > 1) return renderStackMulti(figs, det);
 
-  // Build the visual stack: always STACK_VIS_CAP slots. The BOTTOM visual
-  // rows (highest row index) hold the OLDEST items (bottom of the stack);
-  // the newest item lands directly on top — LIFO.
+  // Build the visual stack: at least STACK_VIS_CAP slots; once the content
+  // exceeds the minimum the figure grows to its content height. The BOTTOM
+  // visual rows (highest row index) hold the OLDEST items (bottom of the
+  // stack); the newest item lands directly on top — LIFO.
   const size = totalSize;
-  const strip = ['size: ' + size, size === 0 ? '(empty)' : 'has items'];
+  const strip = ['size: ' + size + (hiddenMore > 0 ? ' (tracer-capped)' : ''),
+    size === 0 ? '(empty)' : 'has items'];
   if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
   if (inits > 1) strip.push(`${inits} Stack instances — ops combined in call order`);
 
   const slotHtml = [];
-  const firstFilledRow = STACK_VIS_CAP - visibleCells.length;
-  for (let row = STACK_VIS_CAP - 1; row >= 0; row--) {
-    if (row < firstFilledRow) {
+  for (let row = slotRows - 1; row >= 0; row--) {
+    // Filled slot: row (slotRows-1) → visibleCells[0], the row above →
+    // visibleCells[1], …; beyond the content → empty slots (only ever shown
+    // while the figure is ≤ STACK_VIS_CAP: grown figures have exactly their
+    // content height, no filler — grilled Q3).
+    const cellIdx = (slotRows - 1) - row;
+    if (cellIdx >= visibleCells.length) {
       // Empty slot above the stack
       slotHtml.push(`<div class="sbox sbox-empty"></div>`);
     } else {
-      // Filled slot: row 7 → visibleCells[0], row 6 → visibleCells[1], …
-      const cellIdx = (STACK_VIS_CAP - 1) - row;
       const cell = visibleCells[cellIdx];
       const isTop = cellIdx === visibleCells.length - 1;
       const cls = ['sbox', 'sbox-filled'];
@@ -397,6 +439,14 @@ export function renderStack() {
       if (cell.id === leavingId) cls.push('sbox-leave');
       slotHtml.push(`<div class="${cls.join(' ')}">${escapeHtml(treeValue(cell.v, 40))}</div>`);
     }
+  }
+  if (hiddenMore > 0) {
+    // The chip rides above the contents: the hidden side is always the TOP
+    // (the tracer records the FIRST 100), and in the column-reverse stack
+    // the last DOM child renders visually first — a scrolled pane therefore
+    // opens on the newest recorded item with the hidden top stated honestly
+    // (grilled Q4).
+    slotHtml.push(`<div class="sbox-cap">… +${hiddenMore} more — tracer records the first 100</div>`);
   }
 
   els.stackBody.innerHTML =
