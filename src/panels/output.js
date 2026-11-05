@@ -12,6 +12,7 @@ import { renderStack } from './stack.js';
 import { renderTwoPointersPanel } from './twoPointers.js';
 import { renderReversePanel } from './reverse.js';
 import { renderPalindromePanel } from './palindrome.js';
+import { renderContainerPanel } from './container.js';
 import { hideOutTabsAll } from './shared.js';
 
 // Master render: editor mirror, playback controls, all output-panel bodies.
@@ -91,16 +92,19 @@ export function renderOutPanel() {
   }
   const isReverse = state.dsaMode === 'two-pointers.reverse-array-string';
   const isPalindrome = state.dsaMode === 'two-pointers.valid-palindrome';
+  const isContainer = state.dsaMode === 'two-pointers.container-with-most-water';
   els.tabTree.hidden = fam !== 'recursion';
   els.tabStack.hidden = fam !== 'stack';
-  els.tabTwoPtrs.hidden = fam !== 'two-pointers' || isReverse || isPalindrome;
+  els.tabTwoPtrs.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.tabReverse.hidden = fam !== 'two-pointers' || !isReverse;
   els.tabPalindrome.hidden = fam !== 'two-pointers' || !isPalindrome;
+  els.tabContainer.hidden = fam !== 'two-pointers' || !isContainer;
   els.treeBody.hidden = fam !== 'recursion';
   els.stackBody.hidden = fam !== 'stack';
-  els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse || isPalindrome;
+  els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.reverseBody.hidden = fam !== 'two-pointers' || !isReverse;
   els.palindromeBody.hidden = fam !== 'two-pointers' || !isPalindrome;
+  els.containerBody.hidden = fam !== 'two-pointers' || !isContainer;
   if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'two-pointers')) {
     hideOutTabsAll(state.dsaMode);
     return;
@@ -108,6 +112,7 @@ export function renderOutPanel() {
   if (fam === 'stack') renderStack();
   else if (isReverse) renderReversePanel();
   else if (isPalindrome) renderPalindromePanel();
+  else if (isContainer) renderContainerPanel();
   else if (fam === 'two-pointers') renderTwoPointersPanel();
   else renderTree();
 }
@@ -139,6 +144,11 @@ els.tabReverse.addEventListener('click', () => {
 });
 els.tabPalindrome.addEventListener('click', () => {
   state.outTab = 'palindrome';
+  if (state.steps.length) state.userTab = true;
+  renderOutPanel();
+});
+els.tabContainer.addEventListener('click', () => {
+  state.outTab = 'container';
   if (state.steps.length) state.userTab = true;
   renderOutPanel();
 });

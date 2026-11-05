@@ -31,11 +31,13 @@ export const els = {
   tabTwoPtrs: document.getElementById('tabTwoPtrs'),
   tabReverse: document.getElementById('tabReverse'),
   tabPalindrome: document.getElementById('tabPalindrome'),
+  tabContainer: document.getElementById('tabContainer'),
   treeBody: document.getElementById('treeBody'),
   stackBody: document.getElementById('stackBody'),
   twoPtrsBody: document.getElementById('twoPtrsBody'),
   reverseBody: document.getElementById('reverseBody'),
   palindromeBody: document.getElementById('palindromeBody'),
+  containerBody: document.getElementById('containerBody'),
   // DSA dropdown (custom)
   dsaTrigger: document.getElementById('dsaTrigger'),
   dsaOptions: document.getElementById('dsaOptions'),

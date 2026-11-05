@@ -828,3 +828,39 @@ textarea[readonly] {
   from { opacity: 0; transform: scale(0.9); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* Container With Most Water tab (2026-11-05-container-with-most-water-design.md) */
+.tp-area { font-weight: 600; color: var(--accent); }
+.tp-pulse {
+  animation: tpPulse 0.5s ease;
+}
+@keyframes tpPulse {
+  0%   { background: rgba(59, 130, 246, 0.35); transform: scale(1); }
+  50%  { background: rgba(59, 130, 246, 0.55); transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.tp-cell {
+  position: relative;
+  overflow: visible;
+}
+.tp-water {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(59, 130, 246, 0.18);
+  border-radius: 4px 4px 0 0;
+  pointer-events: none;
+  transition: height 0.15s ease;
+}
+.tp-pulse .tp-water {
+  animation: tpWaterPulse 0.5s ease;
+  background: rgba(59, 130, 246, 0.35);
+}
+@keyframes tpWaterPulse {
+  0%   { background: rgba(59, 130, 246, 0.35); }
+  50%  { background: rgba(59, 130, 246, 0.55); }
+  100% { background: rgba(59, 130, 246, 0.35); }
+}
+/* Water height is set via JS inline style --water-level; we map it in JS.
+   The max-height of the cell is 44px; water level is proportional to cell value. */
