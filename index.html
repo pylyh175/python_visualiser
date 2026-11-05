@@ -4,6 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Python Code Visualiser</title>
+<script>
+/* Dark mode (2026-11-05-dark-mode-design.md Q3): must run BEFORE the
+   stylesheet so first paint is already in the stored/OS theme — main.js is
+   a deferred module that also boots Pyodide, far too late. */
+(() => {
+  try {
+    const saved = localStorage.getItem('viz.theme');
+    if (saved === 'dark' || saved === 'light') {
+      if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
+    } else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  } catch (err) { /* storage blocked: fall back to light */ }
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -12,6 +27,7 @@
 <header>
   <h1>🐍 Python Code Visualiser</h1>
   <span id="status">Loading Python runtime…</span>
+  <button id="themeToggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">🌙</button>
 </header>
 
 <main>

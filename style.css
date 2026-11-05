@@ -13,7 +13,29 @@
   --orange-bg: #fef3c7;
   --red: #dc2626;
   --red-bg: #fee2e2;
+  --gutter: #9ca3af;      /* editor line numbers (former .mirror .ln literal) */
+  --text-body: #374151;   /* vars-panel values (former #varsBody td.v literal) */
   --mono: Consolas, "SF Mono", Menlo, monospace;
+}
+:root[data-theme="dark"] {
+  /* Chrome-only override (2026-11-05-dark-mode-design.md Q1): the dark
+     visualisation panes (#outputBody/#treeBody/#stackBody/… — #111827
+     terminals) are untouched; only the surrounding chrome re-themes.
+     Highlight bgs go translucent so the editor hl rows work on dark panels. */
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --border: #334155;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --accent: #3b82f6;
+  --green: #34d399;
+  --green-bg: rgba(52, 211, 153, 0.16);
+  --orange: #fbbf24;
+  --orange-bg: rgba(251, 191, 36, 0.14);
+  --red: #f87171;
+  --red-bg: rgba(248, 113, 113, 0.14);
+  --gutter: #64748b;
+  --text-body: #d1d5db;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -44,6 +66,14 @@ header h1 { font-size: 18px; margin: 0; font-weight: 600; }
   background: var(--bg);
 }
 #status.ready { color: var(--green); }
+/* Dark-mode toggle (2026-11-05-dark-mode-design.md Q4): right corner of the
+   top bar, same row as the title. Glyphs match the app's emoji language. */
+#themeToggle {
+  margin-left: auto;
+  padding: 5px 10px;
+  font-size: 15px;
+  line-height: 1;
+}
 
 main {
   flex: 1;
@@ -344,8 +374,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
      mirror only follows via the main-thread scroll handler, so during fast
      scrolling the two opaque layers printed at different offsets: doubled,
      overlapping text that reduced readability (user report 2026-11-05).
-     One glyph layer can never ghost against itself. */
-  color: #111827;
+     One glyph layer can never ghost against itself.
+     Colour = the theme text (2026-11-05 dark mode Q2): light computes the
+     exact former #111827; dark mode re-inks both layers together. */
+  color: var(--text);
 }
 .mirror .spacer {
   position: absolute;
@@ -364,7 +396,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   left: 0;
   text-align: right;
   padding-right: 10px;
-  color: #9ca3af;
+  color: var(--gutter);
   user-select: none;
 }
 .mirror .arrow {
@@ -395,7 +427,7 @@ textarea {
   color: transparent;
   overflow: auto;
   padding-left: 68px;          /* must equal gutter width: 46px line numbers (border-box) + 22px arrow */
-  caret-color: #111827;
+  caret-color: var(--text);    /* theme text: re-inks with the mirror (dark mode Q2) */
 }
 /* Selection: the textarea paints above the mirror, so the highlight must
    stay translucent — the mirror's glyphs show through it (a solid default
@@ -650,7 +682,7 @@ textarea[readonly] {
 #varsBody table { width: 100%; border-collapse: collapse; }
 #varsBody td { padding: 3px 12px; vertical-align: top; }
 #varsBody td.k { color: var(--accent); white-space: nowrap; width: 1%; }
-#varsBody td.v { color: #374151; word-break: break-all; white-space: pre-wrap; }
+#varsBody td.v { color: var(--text-body); word-break: break-all; white-space: pre-wrap; }
 #varsBody .empty { color: var(--muted); padding: 4px 12px; font-size: 13px; }
 
 /* Two Pointers visualiser panel */

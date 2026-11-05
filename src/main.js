@@ -7,6 +7,7 @@ import './navigation/steps.js';
 import './panels/output.js';
 import './panels/twoPointers.js';
 import './runner.js';
+import './theme.js';
 
 // Explicit start-up calls.
 import { init } from './pyodide.js';

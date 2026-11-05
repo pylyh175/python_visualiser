@@ -4,6 +4,7 @@
 // document is parsed (type="module" is deferred), so these all exist.
 export const els = {
   status: document.getElementById('status'),
+  themeToggle: document.getElementById('themeToggle'),
   mirror: document.getElementById('mirror'),
   textarea: document.getElementById('codeInput'),
   visualize: document.getElementById('btnVisualize'),
