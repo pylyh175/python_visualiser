@@ -73,6 +73,9 @@ export const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary
 // Fixed visible capacity: the drawn figure always shows this many slots,
 // bottom-up; deeper pushes beyond it are not drawn (state strip still counts).
 export const STACK_VIS_CAP = 8;
+// Multi-instance figures (2026-11-05-stack-multi-instance-design.md Q6):
+// at most this many instances draw; the rest collapse into the "+N more" chip.
+export const STACK_FIGURE_CAP = 4;
 // Contract C (grilled): a user-defined class qualifies with `push` + `pop`;
 // optional ops degrade gracefully — a missing method simply never matches a
 // frame, its visual never appears. Each method is recorded with the def's

@@ -2,7 +2,7 @@
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
-import { STACK_VIS_CAP, STACK_CONTRACT } from '../config.js';
+import { STACK_VIS_CAP, STACK_FIGURE_CAP, STACK_CONTRACT } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
 import { hideOutTabsAll } from './shared.js';
 
@@ -155,6 +155,139 @@ function parseInstanceAttr(instanceStr, attrName) {
   }
 }
 
+// Multi-instance (2026-11-05-stack-multi-instance-design.md, grilled Q2–Q5):
+// each instance of the tracked class becomes its own figure, in
+// first-recorded construction order. Identity is the runner's per-frame
+// `oid` — a recorded fact of execution, not an inference. Contents come
+// from recorded steps ONLY: while one of the instance's frames is the
+// recorded top frame, the figure reads that step's `self` snapshot
+// (`step.locals` belongs to the top frame); between calls the figure keeps
+// that LAST RECORDED snapshot (sticky). Everything is re-derived from steps
+// 0..upTo on every render — nothing is mutated, so rewind is exact.
+export function collectStackFigures(upTo, det) {
+  const byOid = new Map();   // oid -> figure; insertion order = first appearance
+  const last = Math.min(upTo, state.steps.length - 1);
+  for (let s = 0; s <= last; s++) {
+    const step = state.steps[s];
+    const frames = step.stack || [];
+    for (const e of frames) {
+      if (e.oid == null || !stackOpKey(e, det)) continue;
+      let fig = byOid.get(e.oid);
+      if (!fig) {
+        fig = { oid: e.oid, firstStep: s, ops: new Map(), selfStr: null };
+        byOid.set(e.oid, fig);
+      }
+      if (!fig.ops.has(e.id)) {
+        fig.ops.set(e.id, { key: stackOpKey(e, det), start: s, ret: null, retStep: null });
+      }
+    }
+    // Content: the figure whose frame is this step's recorded top.
+    if (topHasOid(frames, det) && byOid.has(frames[frames.length - 1].oid)) {
+      const fig = byOid.get(frames[frames.length - 1].oid);
+      const selfStr = (step.locals || {}).self;
+      if (typeof selfStr === 'string') fig.selfStr = selfStr;   // sticky overwrite
+    }
+    // Return records: a frame id belongs to exactly one instance.
+    for (const r of step.ret || []) {
+      for (const fig of byOid.values()) {
+        const rec = fig.ops.get(r.id);
+        if (rec && rec.retStep === null) { rec.ret = r.value; rec.retStep = s; }
+      }
+    }
+  }
+  return [...byOid.values()];
+}
+
+function topHasOid(frames, det) {
+  const top = frames[frames.length - 1];
+  return top && top.oid != null && !!stackOpKey(top, det);
+}
+
+// The multi figure row (grilled Q3, Q5–Q7). Each figure is the existing
+// 8-slot visual driven by THAT instance's own op replay and last-recorded
+// self snapshot; the strip shows only its own facts. Cap: the first
+// STACK_FIGURE_CAP instances draw figures, the rest collapse into a chip.
+function renderStackMulti(figs, det) {
+  const prevByOid = new Map(collectStackFigures(Math.max(0, state.idx - 1), det)
+    .map((f) => [f.oid, f]));
+  const shown = figs.slice(0, STACK_FIGURE_CAP);
+  const moreCount = figs.length - shown.length;
+
+  const rowHtml = shown.map((fig, n) => {
+    // That instance's own op replay for animation triggers (solo semantics).
+    const idCells = [];
+    let lastRet = null;
+    let peekTop = false;
+    for (const rec of [...fig.ops.values()]) {
+      if (rec.key === 'push') idCells.push({ start: rec.start, id: fig.oid + ':' + rec.id });
+      else if (rec.key === 'pop') idCells.pop();
+      if ((rec.key === 'pop' || rec.key === 'peek' || rec.key === 'size' || rec.key === 'empty')
+        && rec.retStep !== null && (!lastRet || rec.retStep >= lastRet.step)) {
+        lastRet = { key: rec.key, value: rec.ret, step: rec.retStep };
+      }
+      if (rec.key === 'peek' && rec.retStep === null) peekTop = true;
+    }
+    // REAL contents: the last recorded self snapshot of THIS instance —
+    // same overwrite shape as the solo path (value cells replace replay).
+    const actual = parseInstanceAttr(fig.selfStr, det.attrName);
+    const cells = actual.map((v, i) => ({ v, start: -1, id: fig.oid + ':actual-' + i }));
+    const totalSize = cells.length;
+    const visibleCells = cells.slice(-STACK_VIS_CAP);
+
+    // Enter/leave per figure — the exact solo derivation (current top id
+    // vs the previous step's replay top; the overwrite makes on/off-enter
+    // matches the same solo semantics, no invented divergence).
+    const prev = prevByOid.get(fig.oid);
+    let prevCells = [];
+    if (prev) {
+      for (const rec of [...prev.ops.values()]) {
+        if (rec.key === 'push') prevCells.push({ id: prev.oid + ':' + rec.id });
+        else if (rec.key === 'pop') prevCells.pop();
+      }
+    }
+    const prevTopId = prevCells.length ? prevCells[prevCells.length - 1].id : null;
+    const currTopId = cells.length ? cells[cells.length - 1].id : null;
+    const enteringId = (cells.length && cells[cells.length - 1].start === state.idx)
+      ? cells[cells.length - 1].id : null;
+    const leavingId = (prevTopId !== null && prevTopId !== currTopId) ? prevTopId : null;
+
+    // The solo slot loop, parameterised by this figure's cells.
+    const size = totalSize;
+    const slotHtml = [];
+    const firstFilledRow = STACK_VIS_CAP - visibleCells.length;
+    for (let row = STACK_VIS_CAP - 1; row >= 0; row--) {
+      if (row < firstFilledRow) {
+        slotHtml.push(`<div class="sbox sbox-empty"></div>`);
+      } else {
+        const cellIdx = (STACK_VIS_CAP - 1) - row;
+        const cell = visibleCells[cellIdx];
+        const isTop = cellIdx === visibleCells.length - 1;
+        const cls = ['sbox', 'sbox-filled'];
+        if (isTop) cls.push('sbox-top');
+        if (isTop && peekTop) cls.push('sbox-peek');
+        if (cell.id === enteringId) cls.push('sbox-enter');
+        if (cell.id === leavingId) cls.push('sbox-leave');
+        slotHtml.push(`<div class="${cls.join(' ')}">${escapeHtml(treeValue(cell.v, 40))}</div>`);
+      }
+    }
+
+    const strip = [`size: ${size}`, size === 0 ? '(empty)' : 'has items'];
+    if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
+
+    return `<div class="sfig">`
+      + `<div class="sfig-label">Stack #${n + 1}</div>`
+      + `<div class="sstrip">${strip.map(escapeHtml).join(' · ')}</div>`
+      + `<div class="sstack">${slotHtml.join('\n')}</div>`
+      + `</div>`;
+  });
+
+  if (moreCount > 0) {
+    rowHtml.push(`<div class="sfig-more">… +${moreCount} more</div>`);
+  }
+  els.stackBody.innerHTML = `<div class="sfigures">${rowHtml.join('\n')}</div>`;
+  els.stackBody.scrollTop = 0;
+}
+
 export function renderStack() {
   const det = state.stackScan;
   if (!det || !det.found) { hideOutTabsAll(state.dsaMode); return; }
@@ -231,6 +364,12 @@ export function renderStack() {
   els.output.hidden = state.outTab !== 'out';
   els.stackBody.hidden = state.outTab !== 'stack';
   if (state.outTab !== 'stack') return;
+
+  // Multi-instance: more than one instance of the tracked class draws as its
+  // own figure (2026-11-05 design, grilled Q3–Q7). Identity comes from the
+  // runner's per-frame `oid`; with only one instance this stays untouched.
+  const figs = collectStackFigures(state.idx, det);
+  if (figs.length > 1) return renderStackMulti(figs, det);
 
   // Build the visual stack: always STACK_VIS_CAP slots. The BOTTOM visual
   // rows (highest row index) hold the OLDEST items (bottom of the stack);

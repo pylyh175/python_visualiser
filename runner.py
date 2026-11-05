@@ -8,6 +8,7 @@ import time
 import tokenize
 import traceback
 import types
+import weakref
 
 STEP_LIMIT = 20000        # max recorded steps
 TIME_LIMIT = 10.0         # seconds of tracing before we stop (keeps UI responsive)
@@ -225,6 +226,44 @@ def __viz_run(code):
     call_info = {}     # call id -> {"fn": ..., "args": {...}} captured at the call event
     call_count = 0     # user-code calls seen so far
     MAX_CALLS = 5000   # safety stop: ids/labels stop being recorded past this
+    obj_oids = {}      # id(instance) -> [weakref, oid]: stable small identity
+                       # per object, recorded on stack-frame entries as `oid`
+                       # (2026-11-05 stack multi-instance design, grilled Q1)
+    oid_count = 0      # instances seen so far
+
+    def __viz_obj_oid(obj):
+        # Stable small integer per object instance so two instances of the
+        # SAME class can be told apart (their snapshots can be byte-equal).
+        # The weakref guard frees the slot when the object dies, so a
+        # recycled id() can never merge two different objects. Schemas
+        # without __weakref__ (slots) fall back to the raw key: id reuse
+        # then merges instances — a vanishing edge, recorded in the design.
+        nonlocal oid_count
+        key = id(obj)
+        slot = obj_oids.get(key)
+        if slot is not None:
+            if slot[0] is None or slot[0]() is obj:
+                return slot[1]
+            del obj_oids[key]          # previous object died; id can be reused
+        try:
+            ref = weakref.ref(obj)
+        except Exception:
+            ref = None
+        oid_count += 1
+        obj_oids[key] = (ref, oid_count)
+        return oid_count
+
+    def __viz_oid_for_frame(fr):
+        # `oid` only for genuine user-class instances bound as `self`
+        # (builtins, modules and functions never qualify — their frames
+        # stay free of instance identity).
+        self_obj = fr.f_locals.get("self")
+        if self_obj is None or type(self_obj) in (
+                str, int, float, bool, complex, list, dict, tuple,
+                set, frozenset, type, types.ModuleType, types.FunctionType,
+                types.BuiltinFunctionType):
+            return None
+        return __viz_obj_oid(self_obj)
     pending_ret = []   # returns not yet resolved on a recorded step (normally ≤1: the next return step resolves them)
     unwinding = False  # an exception is propagating; frame exits are not returns
     t0 = time.monotonic()
@@ -281,8 +320,12 @@ def __viz_run(code):
                     else:
                         break
                 info = call_info.get(fid) or {"fn": fr.f_code.co_name, "args": {}}
-                chain.append({"id": fid, "fn": info["fn"], "args": info["args"],
-                              "sig": fr.f_code.co_firstlineno})
+                entry = {"id": fid, "fn": info["fn"], "args": info["args"],
+                         "sig": fr.f_code.co_firstlineno}
+                oid = __viz_oid_for_frame(fr)
+                if oid is not None:
+                    entry["oid"] = oid
+                chain.append(entry)
                 fr = fr.f_back
             chain.reverse()
             step = {"line": frame.f_lineno, "locals": snap, "outLen": out.tell(),
@@ -351,8 +394,12 @@ def __viz_run(code):
                         else:
                             break
                     info = call_info.get(chain_fid) or {"fn": fr.f_code.co_name, "args": {}}
-                    chain.append({"id": chain_fid, "fn": info["fn"], "args": info["args"],
-                                  "sig": fr.f_code.co_firstlineno})
+                    entry = {"id": chain_fid, "fn": info["fn"], "args": info["args"],
+                             "sig": fr.f_code.co_firstlineno}
+                    ret_oid = __viz_oid_for_frame(fr)
+                    if ret_oid is not None:
+                        entry["oid"] = ret_oid
+                    chain.append(entry)
                     fr = fr.f_back
                 chain.reverse()
                 step = {"line": frame.f_lineno, "locals": snap, "outLen": out.tell(),
