@@ -546,7 +546,10 @@ textarea[readonly] {
    into the muted chip. Each figure keeps its own slot stack and strip. */
 .sfigures {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;   /* side by side, ALWAYS — a narrow pane scrolls
+                          horizontally instead of stacking figures
+                          top-and-bottom (user report 2026-11-05) */
+  overflow-x: auto;
   gap: 18px;
   align-items: flex-end;
   margin-top: 8px;
@@ -555,6 +558,7 @@ textarea[readonly] {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex-shrink: 0;      /* a fixed-width figure never gets squeezed */
 }
 .sfig-label {
   font-family: var(--mono);
