@@ -12,6 +12,7 @@ export async function init() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     state.runnerSource = await resp.text();
     if (!state.runnerSource.trim()) throw new Error('runner.py is empty');
+    console.log('Fetched runner.py, length:', state.runnerSource.length);
   } catch (err) {
     // file:// pages cannot read sibling files (browser CORS); the site must
     // be opened through start.bat (a tiny local web server) or any server.
@@ -38,7 +39,22 @@ export async function init() {
       }
     }
 
+    console.log('Executing runner.py in Pyodide...');
     await state.pyodide.runPythonAsync(state.runnerSource);
+    
+    // Verify __viz_run was defined in globals
+    const hasVizRun = await state.pyodide.runPythonAsync('__viz_run in globals()');
+    console.log('__viz_run defined in globals:', hasVizRun);
+    if (!hasVizRun) {
+      // Try to see what's in globals
+      const keys = await state.pyodide.runPythonAsync('list(globals().keys())');
+      console.log('Globals keys:', keys);
+      throw new Error('__viz_run not defined after runner.py execution');
+    }
+    // Also verify it's callable
+    const isCallable = await state.pyodide.runPythonAsync('callable(globals()["__viz_run"])');
+    console.log('__viz_run is callable:', isCallable);
+    
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
     syncVisualizeEnabled();

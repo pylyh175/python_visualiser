@@ -1,6 +1,11 @@
 /* ═══════════════ Container With Most Water tab (two-pointers sub-mode) ═══════════════
    Mirrors reverse.js/palindrome.js: id-keyed tab, ground-truth-only animation,
-   strobe-guarded pulse on max_area update. */
+   strobe-guarded pulse on max_area update.
+   Proportional bar heights (2026-11-05-container-proportional-bars-design.md):
+   - Scaling factor computed once from full array max & available height
+   - Minimum 4px bar height for visibility
+   - Bottom-aligned baseline, value labels above bars
+   - Flat water line at waterLevel across container */
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
@@ -13,6 +18,10 @@ const CONTAINER_VIS_CAP = 30;
 
 // Last rendered step — pulse fires only on a DIFFERENT step (no strobe on re-renders).
 let lastRenderedStep = -1;
+
+// Scaling cache: computed once at first detection, constant across all steps (Q3).
+// { factor, maxVal, availHeight, minBarPx }
+let containerScale = { factor: null, maxVal: null, availHeight: null, minBarPx: 4 };
 
 export function renderContainerPanel() {
   const fam = dsaFamily(state.dsaMode);
@@ -110,9 +119,26 @@ function renderContainerPanelContent(detection) {
     ? (rightIdx - leftIdx) * waterLevel
     : 0;
 
-  // Build array strip cells with water fill
-  // Water fills between left and right pointers up to min(height[left], height[right])
+  // Compute scaling factor ONCE (first render with this array), then reuse
+  // Available height = containerBody clientHeight minus strip (~40px) and padding
+  if (containerScale.factor === null || containerScale.maxVal !== Math.max(...arr)) {
+    const maxVal = Math.max(...arr);
+    const containerEl = els.containerBody;
+    const stripEl = containerEl.querySelector('.tp-strip');
+    const stripH = stripEl ? stripEl.offsetHeight : 40;
+    const padding = 24; // top+bottom padding
+    const availH = Math.max(50, containerEl.clientHeight - stripH - padding);
+    // Factor so maxVal maps to availH, with minimum bar enforcement
+    const rawFactor = availH / maxVal;
+    // Ensure minimum bar height of 4px for value=1
+    const factor = Math.max(rawFactor, 4 / Math.max(1, Math.min(...arr.filter(v => v > 0))));
+    containerScale = { factor, maxVal, availHeight: availH, minBarPx: 4 };
+  }
+
+  const { factor, minBarPx } = containerScale;
   const maxHeight = Math.max(...arr);
+
+  // Build array strip cells with proportional heights and water fill
   let cellsHtml = '';
   for (let i = startIdx; i < endIdx; i++) {
     const isLeft = i === leftIdx;
@@ -121,18 +147,22 @@ function renderContainerPanelContent(detection) {
     if (isLeft) cls.push('tp-left');
     if (isRight) cls.push('tp-right');
     if (isLeft && isRight) cls.push('tp-both');
-    if (pulse) cls.push('tp-pulse');  // pulse on new max_area
+    if (pulse) cls.push('tp-pulse');
 
-    // Water height: between pointers, up to waterLevel
-    let waterPct = 0;
+    const val = arr[i];
+    // Proportional bar height with minimum enforcement
+    const barHeightPx = Math.max(minBarPx, Math.round(val * factor));
+    // Water height within this cell: up to waterLevel, capped at cell height
+    let waterHeightPx = 0;
     if (i > leftIdx && i < rightIdx && waterLevel > 0) {
-      waterPct = (Math.min(arr[i], waterLevel) / maxHeight) * 100;
+      waterHeightPx = Math.min(barHeightPx, Math.round(Math.min(val, waterLevel) * factor));
     }
-    const val = escapeHtml(fmtValue(arr[i]));
+
+    const valStr = escapeHtml(fmtValue(val));
     cellsHtml += `
-      <div class="${cls.join(' ')}" data-idx="${i}">
-        ${val}
-        <div class="tp-water" style="height: ${waterPct}%;"></div>
+      <div class="${cls.join(' ')}" data-idx="${i}" style="height: ${barHeightPx}px;">
+        <span class="tp-val">${valStr}</span>
+        <div class="tp-water" style="height: ${waterHeightPx}px;"></div>
       </div>
     `;
   }
@@ -145,6 +175,7 @@ function renderContainerPanelContent(detection) {
     ? `<span class="tp-area tp-pulse">area = ${currentArea} (max ${maxAreaNow})</span>`
     : `<span class="tp-area">area = ${currentArea} (max ${maxAreaNow})</span>`;
 
+  // Mark the array as container mode for CSS
   els.containerBody.innerHTML = `
     <div class="tp-strip">
       <span class="tp-arr">${escapeHtml(arrName)}[${len}]</span>
@@ -152,7 +183,7 @@ function renderContainerPanelContent(detection) {
       <span class="tp-ptr tp-right-label">${escapeHtml(rightName)}=${rightIdx} → ${rightVal}</span>
       <span class="tp-arr">${areaBadge}</span>
     </div>
-    <div class="tp-array" data-left="${leftIdx}" data-right="${rightIdx}">
+    <div class="tp-array" data-container data-left="${leftIdx}" data-right="${rightIdx}">
       ${cellsHtml}
     </div>
   `;

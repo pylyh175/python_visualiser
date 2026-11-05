@@ -697,12 +697,12 @@ textarea[readonly] {
   background: #111827;
   color: #f9fafb;
 }
-/* Reverse + Palindrome visualiser bodies: the same black terminal chrome as
-   #outputBody / #treeBody / #stackBody / #twoPtrsBody. Without it these fall
-   back to the .panel white (--panel: #ffffff) — the white two-pointers
-   sub-mode tab bodies (bug report 2026-11-05). */
+/* Reverse + Palindrome + Container visualiser bodies: the same black terminal
+   chrome as #outputBody / #treeBody / #stackBody / #twoPtrsBody. Without it
+   these fall back to the .panel white (--panel: #ffffff). */
 #reverseBody,
-#palindromeBody {
+#palindromeBody,
+#containerBody {
   flex: 1;
   min-height: 80px;
   overflow: hidden;
@@ -862,5 +862,42 @@ textarea[readonly] {
   50%  { background: rgba(59, 130, 246, 0.55); }
   100% { background: rgba(59, 130, 246, 0.35); }
 }
-/* Water height is set via JS inline style --water-level; we map it in JS.
-   The max-height of the cell is 44px; water level is proportional to cell value. */
+
+/* Container With Most Water: proportional bar heights (2026-11-05-container-proportional-bars-design.md) */
+.tp-array[data-container] {
+  align-items: flex-end;   /* bottom-aligned baseline for histogram */
+}
+.tp-array[data-container] .tp-cell {
+  height: auto;            /* proportional height set by JS */
+  min-height: 4px;         /* minimum visible height (Q2) */
+  justify-content: flex-end;  /* value at top of bar */
+  padding-top: 18px;       /* room for value label above bar */
+  padding-bottom: 16px;    /* room for index label below */
+}
+.tp-array[data-container] .tp-cell::before {
+  bottom: -14px;           /* index label below bar */
+}
+.tp-array[data-container] .tp-val {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.tp-array[data-container] .tp-water {
+  border-radius: 4px 4px 0 0;
+  bottom: 0;
+  transition: height 0.15s ease;
+}
+.tp-array[data-container] .tp-pulse {
+  animation: tpPulse 0.5s ease;
+}
+.tp-array[data-container] .tp-pulse .tp-water {
+  animation: tpWaterPulse 0.5s ease;
+  background: rgba(59, 130, 246, 0.35);
+}
