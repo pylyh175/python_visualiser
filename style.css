@@ -338,7 +338,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .mirror {
   z-index: 1;
   pointer-events: none;
-  color: #374151;
+  /* The mirror owns the VISIBLE text. It used to duplicate it (#374151)
+     under the textarea's opaque #111827 text — two identical glyph layers.
+     The textarea is compositor-scrolled (async scroll thread) while the
+     mirror only follows via the main-thread scroll handler, so during fast
+     scrolling the two opaque layers printed at different offsets: doubled,
+     overlapping text that reduced readability (user report 2026-11-05).
+     One glyph layer can never ghost against itself. */
+  color: #111827;
 }
 .mirror .spacer {
   position: absolute;
@@ -382,10 +389,19 @@ textarea {
   outline: none;
   border: 0;
   background: transparent;
-  color: #111827;
+  /* The mirror underneath paints the visible text (one glyph layer only —
+     see .mirror above). The textarea stays the input surface: transparent
+     text over the mirror, with the caret and selection still drawn. */
+  color: transparent;
   overflow: auto;
   padding-left: 68px;          /* must equal gutter width: 46px line numbers (border-box) + 22px arrow */
   caret-color: #111827;
+}
+/* Selection: the textarea paints above the mirror, so the highlight must
+   stay translucent — the mirror's glyphs show through it (a solid default
+   blue would erase the text under the selection). */
+textarea::selection {
+  background: rgba(37, 99, 235, 0.30);
 }
 /* Locked editor: a faint wash (must stay semi-transparent — the highlight
    mirror renders underneath the textarea). */
