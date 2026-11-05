@@ -175,6 +175,9 @@ button {
   background: var(--panel);
   cursor: pointer;
 }
+#btnFirst, #btnPrev, #btnNext, #btnLast {
+  color: var(--muted);    /* match step label visibility in both themes */
+}
 button:hover:not(:disabled) { background: var(--bg); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 #btnVisualize {
