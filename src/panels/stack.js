@@ -2,7 +2,7 @@
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
-import { STACK_VIS_CAP, STACK_FIGURE_CAP, STACK_CONTRACT } from '../config.js';
+import { STACK_VIS_CAP, STACK_CONTRACT } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
 import { hideOutTabsAll } from './shared.js';
 
@@ -219,17 +219,17 @@ function topHasOid(frames, det) {
   return top && top.oid != null && !!stackOpKey(top, det);
 }
 
-// The multi figure row (grilled Q3, Q5–Q7). Each figure is the existing
-// 8-slot visual driven by THAT instance's own op replay and last-recorded
-// self snapshot; the strip shows only its own facts. Cap: the first
-// STACK_FIGURE_CAP instances draw figures, the rest collapse into a chip.
+// The multi figure row (grilled Q3, Q5–Q7). Every instance draws as its own
+// complete figure (2026-11-05-stack-unbounded-figures-design.md: the old
+// 4-figure cap collapsed the rest into a "… +N more" chip — the user asked
+// for ALL of them; the `.sfigures` row scrolls horizontally at any count).
+// Each figure is the existing visual driven by THAT instance's own op replay
+// and last-recorded self snapshot; the strip shows only its own facts.
 function renderStackMulti(figs, det) {
   const prevByOid = new Map(collectStackFigures(Math.max(0, state.idx - 1), det)
     .map((f) => [f.oid, f]));
-  const shown = figs.slice(0, STACK_FIGURE_CAP);
-  const moreCount = figs.length - shown.length;
 
-  const rowHtml = shown.map((fig, n) => {
+  const rowHtml = figs.map((fig, n) => {
     // That instance's own op replay for animation triggers (solo semantics).
     const idCells = [];
     let lastRet = null;
@@ -313,9 +313,6 @@ function renderStackMulti(figs, det) {
       + `</div>`;
   });
 
-  if (moreCount > 0) {
-    rowHtml.push(`<div class="sfig-more">… +${moreCount} more</div>`);
-  }
   els.stackBody.innerHTML = `<div class="sfigures">${rowHtml.join('\n')}</div>`;
   els.stackBody.scrollTop = 0;
 }

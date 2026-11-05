@@ -75,9 +75,6 @@ export const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary
 // GROWS to its content height (2026-11-05-stack-dynamic-growth-design.md,
 // grilled Q1–Q6) — this constant is the floor, not a cap.
 export const STACK_VIS_CAP = 8;
-// Multi-instance figures (2026-11-05-stack-multi-instance-design.md Q6):
-// at most this many instances draw; the rest collapse into the "+N more" chip.
-export const STACK_FIGURE_CAP = 4;
 // Contract C (grilled): a user-defined class qualifies with `push` + `pop`;
 // optional ops degrade gracefully — a missing method simply never matches a
 // frame, its visual never appears. Each method is recorded with the def's

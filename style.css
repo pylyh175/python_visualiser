@@ -557,9 +557,11 @@ textarea[readonly] {
   gap: 4px;
   margin-top: 8px;
 }
-/* Multi-instance figures (grilled 2026-11-05 Q3/Q6): one complete figure
-   per instance, side by side in a wrap-row; further instances collapse
-   into the muted chip. Each figure keeps its own slot stack and strip. */
+/* Multi-instance figures (grilled 2026-11-05 Q3/Q6; unbounded figures
+   2026-11-05-stack-unbounded-figures-design.md): one complete figure per
+   instance at ANY count — the old 4-cap collapsed the rest into a chip
+   the user asked away; the nowrap row + overflow-x scrolls instead.
+   Each figure keeps its own slot stack and strip. */
 .sfigures {
   display: flex;
   flex-wrap: nowrap;   /* side by side, ALWAYS — a narrow pane scrolls
@@ -581,12 +583,6 @@ textarea[readonly] {
   font-size: 12px;
   color: #e5e7eb;
   margin-bottom: 2px;
-}
-.sfig-more {
-  align-self: center;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: #6b7280;
 }
 .sbox {
   width: 180px;
