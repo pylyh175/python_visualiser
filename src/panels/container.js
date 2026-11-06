@@ -88,7 +88,12 @@ export function renderContainer() {
     state.outTab = 'container';
   }
 
-  if (!detection && !state.userTab) {
+  // ONE-TIME (2026-11-06 navigation fix, mirrors reverse.js): the advance is
+  // gated on the same containerAnnounced latch — every detection-less render
+  // used to re-fire the scan and hijack step navigation (Next from an early
+  // step snapped back to the first detected step; stepping into the final step
+  // teleported back too, because its merged snapshot fails detection).
+  if (!detection && !state.userTab && !state.containerAnnounced) {
     for (let i = 0; i < state.steps.length; i++) {
       const det = detectTwoPointers(state.steps[i]?.locals || {});
       if (det) {

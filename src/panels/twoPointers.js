@@ -106,11 +106,14 @@ export function renderTwoPointers() {
 
   // If detection fails at current step (e.g., final step after function returns,
   // or pointer out of bounds), auto-advance to first step with valid detection.
-  // This runs both on initial load (idx=0) and after a run completes (idx=last).
-  if (!detection && !state.userTab) {
+  // ONE-TIME per run (2026-11-06 navigation fix, mirrors the other two-pointer
+  // panes): the advance is gated on the twoPointersAnnounced latch — every
+  // detection-less render used to re-fire the scan and hijack step navigation.
+  if (!detection && !state.userTab && !state.twoPointersAnnounced) {
     for (let i = 0; i < state.steps.length; i++) {
       if (detectTwoPointers(state.steps[i]?.locals || {})) {
         state.idx = i;
+        state.twoPointersAnnounced = true;
         // Re-detect at new index
         const newLocals = state.steps[state.idx]?.locals || {};
         const newDetection = detectTwoPointers(newLocals);

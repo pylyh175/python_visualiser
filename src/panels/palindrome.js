@@ -109,7 +109,10 @@ export function renderPalindrome() {
     state.outTab = 'palindrome';
   }
 
-  if (!detection && !state.userTab) {
+  // ONE-TIME (2026-11-06 navigation fix, mirrors reverse.js): the advance is
+  // gated on the same palindromeAnnounced latch — every detection-less render
+  // used to re-fire the scan and hijack step navigation.
+  if (!detection && !state.userTab && !state.palindromeAnnounced) {
     for (let i = 0; i < state.steps.length; i++) {
       const det = detectPalindrome(state.steps[i]?.locals || {});
       if (det) {

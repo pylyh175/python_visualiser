@@ -20,8 +20,10 @@ export function resetRun() {
   state.programOutput = '';
   state.outTab = 'out'; state.userTab = false;
   state.treeAnnounced = false; state.stackAnnounced = false;
+  state.twoPointersAnnounced = false;
   state.reverseAnnounced = false;
   state.palindromeAnnounced = false;
+  state.containerAnnounced = false;
   state.stackScan = null;
   render();
 }
@@ -83,8 +85,13 @@ els.visualize.addEventListener('click', async () => {
       scrollToLine(state.steps[state.idx].line);
       return;
     }
-    // Successful run: land on the final step so the output is visible.
-    state.idx = state.steps.length - 1;
+    // Successful run: land on the FIRST step (2026-11-06 navigation fixes —
+    // user requirement: Visualize starts the story at the beginning, Next
+    // walks forward, and stepping to the final step still hands the editor
+    // back via setIdx). The Output tab shows the full print statically in
+    // algorithm modes; the visualiser pane follows step 0 — a two-pointer
+    // sub-mode may auto-advance ONCE (its announce latch) to its engaged step.
+    state.idx = 0;
     render();
     scrollToLine(state.steps[state.idx].line);
   } catch (err) {

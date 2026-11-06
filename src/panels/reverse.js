@@ -51,7 +51,11 @@ export function renderReverse() {
   // valid detection — same pattern as renderTwoPointers, never when the user
   // manually chose a tab. The auto-switch is applied here too: it must happen
   // on the very first render, even when step 0 itself is not a detected step.
-  if (!detection && !state.userTab) {
+  // ONE-TIME (2026-11-06 navigation fix): the advance is gated on the same
+  // reverseAnnounced latch as the tab switch — before, every detection-less
+  // render re-fired the scan and HIJACKED the user's step navigation (Next
+  // snapped back to the first detected step). Once engaged, stepping is free.
+  if (!detection && !state.userTab && !state.reverseAnnounced) {
     for (let i = 0; i < state.steps.length; i++) {
       const det = detectTwoPointers(state.steps[i]?.locals || {});
       if (det) {
