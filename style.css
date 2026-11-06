@@ -443,6 +443,9 @@ textarea::selection {
 textarea[readonly] {
   background: rgba(37, 99, 235, 0.05);
 }
+#btnEdit {
+  color: var(--muted);     /* match step label visibility in both themes */
+}
 #btnEdit:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
