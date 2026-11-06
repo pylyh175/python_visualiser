@@ -104,8 +104,18 @@ function selectDsaOption(id) {
     btn.classList.toggle('active', btn.dataset.value === entry.id);
   });
 
-  if (els.status && entry.status !== 'ready' && !state.runInProgress) {
-    els.status.textContent = `${entry.label} visualisation is planned — code runs as usual`;
+  // Status pill on selection (2026-11-06 user report: implemented two-pointers
+  // sub-modes showed "planned" because the guard tested !== 'ready' while they
+  // carry NO status field at all). Whitelist 'planned' instead — future
+  // implemented sub-modes default-correct without registry boilerplate — and
+  // confirm implemented modes explicitly. (none) stays silent: no visualiser
+  // exists to be "ready". The pill is never stomped mid-run.
+  if (els.status && !state.runInProgress) {
+    if (entry.status === 'planned') {
+      els.status.textContent = `${entry.label} visualisation is planned — code runs as usual`;
+    } else if (entry.id !== 'none') {
+      els.status.textContent = `${entry.label} visualisation is ready — run your code`;
+    }
   }
 
   // A live trace re-renders under the new mode immediately.
