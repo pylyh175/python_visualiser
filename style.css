@@ -558,8 +558,13 @@ textarea[readonly] {
   background: #111827;
   color: #f9fafb;
 }
-/* [hidden] beats explicit flex/gap on these specific children */
-#outputBody[hidden], #treeBody[hidden], .outtabs[hidden] { display: none; }
+/* [hidden] ALWAYS wins, even over per-pane display/flex rules (2026-11-06
+   user report: the container animation stayed visible on the Output tab —
+   #containerBody { display:flex } beat the browser's default
+   [hidden] → display:none, and wasn't in the old per-pane escape list).
+   One generic rule covers every current and FUTURE algorithm body/tab —
+   no per-pane list to maintain. */
+[hidden] { display: none !important; }
 .tn-active { color: var(--orange); font-weight: 600; }
 .tn-done { color: #6ee7a0; }
 .tn-error { color: #fca5a5; font-weight: 600; }
@@ -570,7 +575,6 @@ textarea[readonly] {
    bottom→top with the top of the stack at the TOP of the list, like a
    restaurant plate stack drawn downwards. The top cell carries an orange
    border; peek outlines it; a cell born on the current step rises in. */
-.outtabs button[hidden] { display: none; }
 #stackBody {
   flex: 1;
   min-height: 80px;
@@ -703,12 +707,15 @@ textarea[readonly] {
 #reverseBody,
 #palindromeBody,
 #containerBody {
-  flex: 1;
-  min-height: 80px;
-  overflow: hidden;
-  padding: 10px 12px;
+  flex: 1 1 auto;       /* grow to fill available space */
+  min-height: 0;        /* allow shrinking below min-height */
+  overflow-x: auto;     /* horizontal scroll for many bars */
+  overflow-y: hidden;
+  padding: 4px 8px;     /* reduced padding to maximize vertical space */
   background: #111827;
   color: #f9fafb;
+  display: flex;        /* flex container for strip + array */
+  flex-direction: column;
 }
 .tp-strip {
   display: flex;
@@ -863,20 +870,35 @@ textarea[readonly] {
   100% { background: rgba(59, 130, 246, 0.35); }
 }
 
-/* Container With Most Water: proportional bar heights (2026-11-05-container-proportional-bars-design.md) */
+/* Container With Most Water: finalized bars + thin bars (2026-11-06-container-finalized-bars-design.md) */
 .tp-array[data-container] {
-  align-items: flex-end;   /* bottom-aligned baseline for histogram */
+  position: relative;
+  align-items: flex-end;      /* bottom-aligned baseline */
+  gap: var(--gap, 12px);      /* R2: responsive gap set by JS (--gap); fills the tab width */
+  justify-content: safe center; /* R2/Q3: centered when clamped, left + scroll when not */
+  flex: 1;                    /* fill all available vertical space */
+  min-height: 0;              /* allow flex to determine height */
+  overflow: visible;          /* water container positioned absolutely */
+  padding-top: 24px;          /* Q2 top band: value label (top:-16 tp-val) */
+  padding-bottom: 18px;       /* Q2 bottom band: index label (::before bottom:-14) */
 }
+
 .tp-array[data-container] .tp-cell {
-  height: auto;            /* proportional height set by JS */
-  min-height: 4px;         /* minimum visible height (Q2) */
-  justify-content: flex-end;  /* value at top of bar */
-  padding-top: 18px;       /* room for value label above bar */
-  padding-bottom: 16px;    /* room for index label below */
+  flex: 0 0 auto;             /* Q3: neutralise base flex:1 1 36px growth */
+  min-width: 0;               /* Q3: override base min-width:36px */
+  max-width: none;            /* Q3: override base max-width:80px */
+  width: 10px;                /* Q3: fixed thin bar */
+  height: auto;               /* proportional height set by JS */
+  min-height: 4px;            /* minimum visible height */
+  /* labels are absolutely positioned relative to the cell — no cell padding
+     (Q2: the array's 24/18px bands are the ONE reservation) */
+  justify-content: flex-end;  /* value label at top */
 }
+
 .tp-array[data-container] .tp-cell::before {
-  bottom: -14px;           /* index label below bar */
+  bottom: -14px;              /* index label below bar */
 }
+
 .tp-array[data-container] .tp-val {
   position: absolute;
   top: -16px;
@@ -889,15 +911,29 @@ textarea[readonly] {
   white-space: nowrap;
   pointer-events: none;
 }
-.tp-array[data-container] .tp-water {
-  border-radius: 4px 4px 0 0;
-  bottom: 0;
-  transition: height 0.15s ease;
+
+/* Water container: single rectangle spanning between pointer bars */
+.tp-water-container {
+  position: absolute;
+  bottom: 18px;               /* Q2: aligned with bar bottoms (array bottom−BOTTOM_BAND) */
+  background: rgba(59, 130, 246, 0.35);  /* blue water */
+  border-radius: 2px;
+  pointer-events: none;
+  transition: left 150ms ease, width 150ms ease, height 150ms ease;  /* Q5 */
+  z-index: 1;  /* above bars, below labels */
 }
-.tp-array[data-container] .tp-pulse {
-  animation: tpPulse 0.5s ease;
+
+.tp-water-container.hidden {
+  display: none;
 }
-.tp-array[data-container] .tp-pulse .tp-water {
+
+/* Pulse on max_area update: highlight the water container */
+.tp-pulse .tp-water-container {
   animation: tpWaterPulse 0.5s ease;
-  background: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.55);
+}
+@keyframes tpWaterPulse {
+  0%   { background: rgba(59, 130, 246, 0.35); }
+  50%  { background: rgba(59, 130, 246, 0.55); }
+  100% { background: rgba(59, 130, 246, 0.35); }
 }

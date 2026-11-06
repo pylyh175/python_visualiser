@@ -49,7 +49,16 @@ export function renderOutput() {
     return;
   }
   const step = state.steps[state.idx];
-  let text = step.outLen != null ? state.programOutput.slice(0, step.outLen) : state.programOutput;
+  // Static Output for every mode that has an algorithm tab (2026-11-06, user
+  // report: "animation only in the algorithm's own tab, never the Output tab").
+  // Keyed on the FAMILY (recursion / stack / two-pointers — including every
+  // future family the registry gains) — not per sub-mode — so new algorithms
+  // inherit this automatically. Only plain 'none' mode (no algorithm pane at
+  // all) keeps the per-step print reveal.
+  const hasAlgoTab = dsaFamily(state.dsaMode) !== 'none';
+  let text = hasAlgoTab
+    ? state.programOutput
+    : (step.outLen != null ? state.programOutput.slice(0, step.outLen) : state.programOutput);
   if (text) text += '\n';
   if (state.idx === state.steps.length - 1 && state.programError) {
     text += `<span class="err">${escapeHtml(errorDisplayText())}</span>`;
@@ -104,7 +113,17 @@ export function renderOutPanel() {
   els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.reverseBody.hidden = fam !== 'two-pointers' || !isReverse;
   els.palindromeBody.hidden = fam !== 'two-pointers' || !isPalindrome;
-  els.containerBody.hidden = fam !== 'two-pointers' || !isContainer;
+  els.containerBody.hidden = fam !== 'two-pointers' || !isContainer || state.outTab !== 'container';
+  // Tab highlight follows the actual pane for EVERY out-tab (2026-11-06
+  // container-finalized-bars design Q4 — was only wired for recursion/stack);
+  // single site, so clicks and auto-switches both land here.
+  els.tabOut.classList.toggle('active', state.outTab === 'out');
+  els.tabTree.classList.toggle('active', state.outTab === 'tree');
+  els.tabStack.classList.toggle('active', state.outTab === 'stack');
+  els.tabTwoPtrs.classList.toggle('active', state.outTab === 'two-pointers');
+  els.tabReverse.classList.toggle('active', state.outTab === 'reverse');
+  els.tabPalindrome.classList.toggle('active', state.outTab === 'palindrome');
+  els.tabContainer.classList.toggle('active', state.outTab === 'container');
   if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'two-pointers')) {
     hideOutTabsAll(state.dsaMode);
     return;

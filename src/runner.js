@@ -4,6 +4,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { syncVisualizeEnabled, applyLock } from './lock.js';
 import { render } from './panels/output.js';
+import { resetContainerScale } from './panels/container.js';
 import { scanStackSource } from './panels/stack.js';
 import { cancelStepGlide, scrollToLine } from './navigation/steps.js';
 
@@ -12,6 +13,7 @@ import { cancelStepGlide, scrollToLine } from './navigation/steps.js';
 export function resetRun() {
   cancelStepGlide();
   state.steps = [];
+  resetContainerScale();   // bar scale re-locks on the new run's first visible render (2026-11-06 Q1)
   state.programError = null;
   state.stoppedRun = false;
   state.idx = 0;

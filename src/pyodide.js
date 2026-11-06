@@ -21,6 +21,13 @@ export async function init() {
     return;
   }
   try {
+    // Ground-truth guard (user report: opaque "check internet" on refresh): if
+    // the <script src="…/pyodide.js"> tag failed (offline / blocked / OOM'd
+    // tab), loadPyodide doesn't exist — name THAT instead of blaming a fetch.
+    if (typeof loadPyodide !== 'function') {
+      throw new Error('pyodide.js script did not load from cdn.jsdelivr.net (offline or blocked)');
+    }
+    console.log('Loading Pyodide from CDN…');
     // WASM heap headroom: Pyodide/Emscripten's small default heap can be tight
     // for deep recursion + big variable snapshots; give the runtime 4 MB.
     state.pyodide = await loadPyodide({
@@ -59,7 +66,11 @@ export async function init() {
     els.status.classList.add('ready');
     syncVisualizeEnabled();
   } catch (err) {
-    els.status.textContent = 'Failed to load Python runtime (check internet connection)';
+    // Surface the REAL failure instead of the old one-size "check internet"
+    // guess (user report 2026-11-06): CDN fetch, runner.py execution and the
+    // __viz_run verification all landed here indistinguishably before.
+    const msg = err && err.message ? err.message : String(err);
+    els.status.textContent = `Failed to load Python runtime — ${msg.slice(0, 110)} (refresh to retry)`;
     console.error(err);
   }
 }
