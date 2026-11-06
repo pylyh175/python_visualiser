@@ -38,10 +38,25 @@ export const DSA_MODES = [
     { id: 'two-pointers.valid-palindrome', label: 'Valid Palindrome'},
     { id: 'two-pointers.container-with-most-water',  label: 'Container With Most Water' }
   ] },
+  { id: 'sliding-window', label: 'Sliding Window',    status: 'planned', subModes: [
+    { id: 'sliding-window.find-k-closest-elements', label: 'Find K Closest Elements' },
+    { id: 'sliding-window.lz77', label: 'LZ77' }
+  ] },
   { id: 'dsa',          label: 'DSA', folder: true,   status: 'ready', subModes: [
     { id: 'stack',       label: 'Stack',       status: 'ready' },
     { id: 'queue',       label: 'Queue',       status: 'planned' },
+    { id: 'circular queue', label: 'Circular Queue', status: 'planned'},
     { id: 'linked-list', label: 'Linked List', status: 'planned' },
+    { id: 'hash-table',  label: 'Hash Table', status: 'planned' },
+    { id: 'binary-tree', label: 'Binary Tree', status: 'planned' },
+    { id: 'binary-search-tree', label: 'Binary Search Tree(BST)', status: 'planned' },
+    { id: 'avl-tree', label: 'AVL Tree', status: 'planned' },
+    { id: 'red-black-tree', label: 'Red Black Tree', status: 'planned' },
+    { id: 'b-tree', label: 'B-Tree', status: 'planned' },
+    { id: 'trie', label: 'Trie', status: 'planned' },
+    { id: 'suffix-tree', label: 'Suffix Tree', status: 'planned' },
+    { id: 'binary-heap', label: 'Binary Heap', status: 'planned' },
+    { id: 'fibonacci-heap', label: 'Fibonacci Heap', status: 'planned' }
   ] }
 ];
 export const DSA_STORE_KEY = 'vizDsaMode';
