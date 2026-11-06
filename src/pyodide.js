@@ -47,20 +47,26 @@ export async function init() {
     }
 
     console.log('Executing runner.py in Pyodide...');
-    await state.pyodide.runPythonAsync(state.runnerSource);
-    
-    // Verify __viz_run was defined in globals
-    const hasVizRun = await state.pyodide.runPythonAsync('__viz_run in globals()');
-    console.log('__viz_run defined in globals:', hasVizRun);
-    if (!hasVizRun) {
-      // Try to see what's in globals
-      const keys = await state.pyodide.runPythonAsync('list(globals().keys())');
-      console.log('Globals keys:', keys);
+    // Pin execution to the exact globals dict the run path uses (runner.js
+    // writes __viz_code via state.pyodide.globals.set and reads __viz_run from
+    // it) — never a namespace a future Pyodide version might pick itself.
+    await state.pyodide.runPythonAsync(state.runnerSource, {
+      globals: state.pyodide.globals,
+    });
+
+    // Ground-truth verification (2026-11-06 fresh-load bug): the old check ran
+    // '__viz_run in globals()' THROUGH the Python evaluator, which returned a
+    // false negative on first load even though runner.py defines __viz_run
+    // unconditionally at top level — proof it mis-reported: typing any code
+    // re-enabled the (init-gated) Visualize button and runs then worked on the
+    // SAME runtime. Probe the object the run path actually uses, so
+    // verification can never diverge from execution reality.
+    const vizRun = state.pyodide.globals.get('__viz_run');
+    if (typeof vizRun !== 'function') {
+      console.error('__viz_run missing; pyodide.globals keys:', [...state.pyodide.globals.keys()]);
       throw new Error('__viz_run not defined after runner.py execution');
     }
-    // Also verify it's callable
-    const isCallable = await state.pyodide.runPythonAsync('callable(globals()["__viz_run"])');
-    console.log('__viz_run is callable:', isCallable);
+    console.log('__viz_run callable in pyodide.globals ✓');
     
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
