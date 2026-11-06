@@ -60,6 +60,7 @@ export function renderReverse() {
       const det = detectTwoPointers(state.steps[i]?.locals || {});
       if (det) {
         state.idx = i;
+        state.lastValidFrame = i;
         if (!state.reverseAnnounced) {
           state.reverseAnnounced = true;
           state.outTab = 'reverse';
@@ -70,12 +71,23 @@ export function renderReverse() {
     }
   }
 
+  // PERSISTENT ANIMATION (2026-11-06-persistent-animation-freeze-design.md):
+  // a detected frame remembers itself (lastValidFrame) and detection-less
+  // steps re-render it verbatim (frozen, flashes suppressed).
+  if (detection) state.lastValidFrame = state.idx;
+  else if (state.lastValidFrame >= 0) {
+    const frozen = detectTwoPointers(state.steps[state.lastValidFrame]?.locals || {});
+    if (frozen) { renderReversePanelContent(frozen, state.lastValidFrame, true); return; }
+  }
   renderReversePanelContent(detection);
 }
 
 // Renders the current step's reverse visual into els.reverseBody.
 // Ground truth only: values come verbatim from the tracer's per-step snapshots.
-function renderReversePanelContent(detection) {
+// (detection, frameStep, frozen): a frozen render re-draws the remembered
+// frame — its own values (Q4), with the swap flash suppressed (a frozen
+// re-render is never a new event).
+function renderReversePanelContent(detection, frameStep = state.idx, frozen = false) {
   if (!detection) {
     els.reverseBody.innerHTML = `
       <div class="tp-strip">No reverse pattern detected — needs two pointers swapping a sequence.</div>
@@ -96,10 +108,11 @@ function renderReversePanelContent(detection) {
 
   // Swap flash is ground truth: compare this step's snapshot of the detected
   // array with the previous step's snapshot of the same variable — cells whose
-  // value changed are the ones the swap line just touched.
+  // value changed are the ones the swap line just touched. A frozen re-render
+  // is never a new event (persistent-animation design Q1): flash suppressed.
   let swappedFrom = -1, swappedTo = -1;
-  const pulse = state.idx !== lastRenderedStep;
-  const prevStep = state.idx > 0 ? state.steps[state.idx - 1] : null;
+  const pulse = !frozen && state.idx !== lastRenderedStep;
+  const prevStep = frameStep > 0 ? state.steps[frameStep - 1] : null;
   const prevArr = parseArrayValue(prevStep?.locals?.[arrName]);
   if (pulse && prevArr && prevArr.length === arr.length) {
     for (let i = 0; i < arr.length; i++) {

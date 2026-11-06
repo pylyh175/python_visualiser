@@ -30,6 +30,7 @@ export const state = {
   reverseAnnounced: false,// the one-time auto-switch to the reverse panel
   palindromeAnnounced: false, // the one-time auto-switch to the palindrome panel
   containerAnnounced: false,  // the one-time auto-switch/advance to the container pane
+  lastValidFrame: -1,     // the step whose algorithm frame rendered last — frozen later when a step doesn't touch it (2026-11-06 persistent-animation design)
   stackScan: null,        // scanStackSource() result for the running code
   outFam: null,           // which DSA mode the panel rendered last (full id; sub-mode switches also reset the tab choice)
 

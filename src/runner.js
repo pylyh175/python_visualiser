@@ -24,6 +24,7 @@ export function resetRun() {
   state.reverseAnnounced = false;
   state.palindromeAnnounced = false;
   state.containerAnnounced = false;
+  state.lastValidFrame = -1;
   state.stackScan = null;
   render();
 }

@@ -114,6 +114,7 @@ export function renderTwoPointers() {
       if (detectTwoPointers(state.steps[i]?.locals || {})) {
         state.idx = i;
         state.twoPointersAnnounced = true;
+        state.lastValidFrame = i;
         // Re-detect at new index
         const newLocals = state.steps[state.idx]?.locals || {};
         const newDetection = detectTwoPointers(newLocals);
@@ -127,12 +128,23 @@ export function renderTwoPointers() {
   // (e.g., final step after function returns, or pointer out of bounds),
   // show info message without changing state.idx — navigation to other
   // steps still works.
+  // PERSISTENT ANIMATION (2026-11-06-persistent-animation-freeze-design.md):
+  // a detected frame remembers itself (lastValidFrame) and detection-less
+  // steps re-render it verbatim (frozen) instead of the honest empty message.
+  if (detection) state.lastValidFrame = state.idx;
+  else if (state.lastValidFrame >= 0) {
+    const frozen = detectTwoPointers(state.steps[state.lastValidFrame]?.locals || {});
+    if (frozen) { renderTwoPointersPanelContent(frozen, state.lastValidFrame, true); return; }
+  }
   renderTwoPointersPanelContent(detection);
 }
 
 // Renders the Two Pointers visual content into els.twoPtrsBody
 // Does NOT manipulate visibility - that's handled by renderOutPanel based on state.outTab
-function renderTwoPointersPanelContent(detection) {
+// (detection, frameStep, frozen): uniform persistent-animation contract — the
+// generic pane's content is idx-free and pulse-free; the frame params matter
+// for future panels that follow this shape.
+function renderTwoPointersPanelContent(detection, frameStep = state.idx, frozen = false) {
   if (!detection) {
     els.twoPtrsBody.innerHTML = `
       <div class="tp-strip">Select "Two Pointers" mode and run code with two indices on the same array.</div>

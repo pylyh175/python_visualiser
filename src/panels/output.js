@@ -98,6 +98,8 @@ export function renderOutPanel() {
     state.treeAnnounced = false; state.stackAnnounced = false;
     state.reverseAnnounced = false;
     state.palindromeAnnounced = false;
+    state.containerAnnounced = false;
+    state.lastValidFrame = -1;   // a frozen frame never bleeds across sub-modes
   }
   const isReverse = state.dsaMode === 'two-pointers.reverse-array-string';
   const isPalindrome = state.dsaMode === 'two-pointers.valid-palindrome';

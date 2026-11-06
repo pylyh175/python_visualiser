@@ -98,6 +98,7 @@ export function renderContainer() {
       const det = detectTwoPointers(state.steps[i]?.locals || {});
       if (det) {
         state.idx = i;
+        state.lastValidFrame = i;
         if (!state.containerAnnounced) {
           state.containerAnnounced = true;
           state.outTab = 'container';
@@ -108,12 +109,24 @@ export function renderContainer() {
     }
   }
 
+  // PERSISTENT ANIMATION (2026-11-06-persistent-animation-freeze-design.md):
+  // a detected frame remembers itself (lastValidFrame) and detection-less
+  // steps re-render it verbatim (frozen, pulses suppressed) instead of
+  // blanking the tab with the honest empty message.
+  if (detection) state.lastValidFrame = state.idx;
+  else if (state.lastValidFrame >= 0) {
+    const frozen = detectTwoPointers(state.steps[state.lastValidFrame]?.locals || {});
+    if (frozen) { renderContainerPanelContent(frozen, state.lastValidFrame, true); return; }
+  }
   renderContainerPanelContent(detection);
 }
 
 // Renders the current step's container visual into els.containerBody.
 // Ground truth only: height, left, right, max_area from tracer snapshots.
-function renderContainerPanelContent(detection) {
+// (detection, frameStep, frozen): a frozen render re-draws the remembered
+// frame — frameStep is that step's index (strip values Q4) and pulses are
+// suppressed (a frozen re-render is never a new event).
+function renderContainerPanelContent(detection, frameStep = state.idx, frozen = false) {
   if (!detection) {
     els.containerBody.innerHTML = `
       <div class="tp-strip">No container pattern detected — needs two pointers on a height array.</div>
@@ -140,23 +153,25 @@ function renderContainerPanelContent(detection) {
     startIdx = Math.max(0, Math.min(leftIdx, rightIdx) - 2);
     endIdx = Math.min(len, startIdx + visLen);
   }
-  console.log('[container] Step', state.idx, ':', { leftIdx, rightIdx, len, visLen, startIdx, endIdx, visibleCount: endIdx - startIdx });
+  console.log('[container] Frame step', frameStep, '(frozen:', frozen, '):', { leftIdx, rightIdx, len, visLen, startIdx, endIdx, visibleCount: endIdx - startIdx });
 
-  // Current step's max_area from tracer (ground truth)
-  const maxAreaNow = typeof state.steps[state.idx]?.locals?.max_area === 'number'
-    ? state.steps[state.idx].locals.max_area
+  // Frame step's max_area from tracer (ground truth; Q4: the frozen frame
+  // shows ITS OWN step's values, not the navigated step's).
+  const maxAreaNow = typeof state.steps[frameStep]?.locals?.max_area === 'number'
+    ? state.steps[frameStep].locals.max_area
     : 0;
 
   // Previous step's max_area for pulse detection
   let maxAreaPrev = -1;
-  const prevStep = state.idx > 0 ? state.steps[state.idx - 1] : null;
+  const prevStep = frameStep > 0 ? state.steps[frameStep - 1] : null;
   if (prevStep && typeof prevStep.locals?.max_area === 'number') {
     maxAreaPrev = prevStep.locals.max_area;
   }
 
-  // Pulse on max_area INCREASE (strobe-guarded)
+  // Pulse on max_area INCREASE (strobe-guarded); a frozen re-render is never
+  // a new event (persistent-animation design Q1: pulses suppressed).
   const strobe = state.idx !== lastRenderedStep;
-  const pulse = strobe && maxAreaNow > maxAreaPrev;
+  const pulse = !frozen && strobe && maxAreaNow > maxAreaPrev;
   lastRenderedStep = state.idx;
 
   // Water level = min(height[left], height[right]) — update module-level for positionWater()

@@ -117,6 +117,7 @@ export function renderPalindrome() {
       const det = detectPalindrome(state.steps[i]?.locals || {});
       if (det) {
         state.idx = i;
+        state.lastValidFrame = i;
         if (!state.palindromeAnnounced) {
           state.palindromeAnnounced = true;
           state.outTab = 'palindrome';
@@ -127,12 +128,23 @@ export function renderPalindrome() {
     }
   }
 
+  // PERSISTENT ANIMATION (2026-11-06-persistent-animation-freeze-design.md):
+  // a detected frame remembers itself (lastValidFrame) and detection-less
+  // steps re-render it verbatim (frozen, flashes suppressed).
+  if (detection) state.lastValidFrame = state.idx;
+  else if (state.lastValidFrame >= 0) {
+    const frozen = detectPalindrome(state.steps[state.lastValidFrame]?.locals || {});
+    if (frozen) { renderPalindromePanelContent(frozen, state.lastValidFrame, true); return; }
+  }
   renderPalindromePanelContent(detection);
 }
 
 // Renders the current step's palindrome visual into els.palindromeBody.
 // Ground truth only: s and pointers come verbatim from the tracer snapshots.
-function renderPalindromePanelContent(detection) {
+// (detection, frameStep, frozen): a frozen render re-draws the remembered
+// frame — the verdict/terminating-pair facts come from ITS call (Q4), with
+// the mismatch flash suppressed (a frozen re-render is never a new event).
+function renderPalindromePanelContent(detection, frameStep = state.idx, frozen = false) {
   if (!detection) {
     els.palindromeBody.innerHTML = `
       <div class="tp-strip">No palindrome-check pattern detected — needs two pointers moving over a sequence.</div>
@@ -146,11 +158,11 @@ function renderPalindromePanelContent(detection) {
   const len = sValue.length;
   const cmp = compareState(sValue, leftIdx, rightIdx);
 
-  // The current step's call facts — recorded verdict + terminating pair for
+  // The frame step's call facts — recorded verdict + terminating pair for
   // False calls (grilled follow-up: the flash is return-gated, never the raw
-  // value comparison).
+  // value comparison). Q4: the frozen frame reads ITS OWN step's stack.
   const { verdicts, lastInCall } = callFacts(state.steps);
-  const stack = state.steps[state.idx].stack || [];
+  const stack = state.steps[frameStep].stack || [];
   const top = stack[stack.length - 1];
   const fid = top && top.fn && top.fn !== '<module>' ? top.id : null;
   const verdict = fid != null ? verdicts.get(fid) : undefined;
@@ -184,9 +196,10 @@ function renderPalindromePanelContent(detection) {
 
   // Mismatch flash, RETURN-GATED: only the terminating pair of a call whose
   // false verdict the runner recorded — plus the strobe guard as in reverse.js.
+  // A frozen re-render is never a new event (persistent-animation design Q1).
   const strobe = state.idx !== lastRenderedStep;
   lastRenderedStep = state.idx;
-  const flash = strobe && verdict === false && termPair != null
+  const flash = !frozen && strobe && verdict === false && termPair != null
     && leftIdx === termPair[0] && rightIdx === termPair[1];
 
   const isAlnum = (ch) => /[a-z0-9]/i.test(ch);   // value-derived presentation
