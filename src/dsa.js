@@ -2,8 +2,14 @@
 
 import { state } from './state.js';
 import { els } from './dom.js';
-import { DSA_MODES, DSA_STORE_KEY, dsaEntryById } from './config.js';
+import { DSA_MODES, DSA_STORE_KEY, dsaEntryById, DSA_DEFAULT_CODE, DEFAULT_CODE } from './config.js';
 import { render } from './panels/output.js';
+import { renderEditor } from './editor/render.js';
+
+// The template currently filling the editor (per-mode defaults, grilled
+// Q1–Q6 2026-11-07). When a new mode is picked, the editor swaps ONLY if it
+// still holds this exact default — user code is never overwritten.
+let lastLoadedDefault = DEFAULT_CODE;
 
 // Build the hierarchical dropdown from the registry — index.html ships an
 // empty wrapper, so the option tree lives in exactly one place: adding a
@@ -116,6 +122,28 @@ function selectDsaOption(id) {
     } else if (entry.id !== 'none') {
       els.status.textContent = `${entry.label} visualisation is ready — run your code`;
     }
+  }
+
+  // Per-mode default code (2026-11-07 design, grilled Q1–Q6): '(none)' and
+  // implemented modes without a template fall back to DEFAULT_CODE; planned
+  // modes get a placeholder comment. The swap only happens when the editor
+  // still holds the previous template (stale default) — normalize is defined
+  // BEFORE its first use (the previous session's bug: TDZ ReferenceError).
+  const normalize = (s) => s.replace(/\r\n/g, '\n').trim();
+  let newDefault = (entry.id === 'none' || !DSA_DEFAULT_CODE[entry.id])
+    ? DEFAULT_CODE
+    : DSA_DEFAULT_CODE[entry.id];
+  if (entry.status === 'planned') {
+    newDefault = `# ${entry.label} visualisation is planned — implement your code here`;
+  }
+  if (normalize(els.textarea.value) === normalize(lastLoadedDefault)) {
+    els.textarea.value = newDefault;
+    lastLoadedDefault = newDefault;
+    // A programmatic value write fires no 'input' event, so the highlighted
+    // mirror behind the textarea keeps showing the previous code (visible
+    // only before the first Visualize — afterwards render() rebuilds it).
+    // Rebuild the mirror now, exactly like the boot writer's render() pass.
+    renderEditor();
   }
 
   // A live trace re-renders under the new mode immediately.

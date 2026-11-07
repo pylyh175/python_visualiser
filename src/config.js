@@ -15,6 +15,23 @@ export const DEFAULT_CODE = [
   'print("total:", total)',
 ].join('\n');
 
+// Per-mode default code templates (2026-11-07 design, grilled Q1–Q6): the
+// editor swaps to a mode's template when a new mode is picked, but ONLY if
+// the editor still holds the previous mode's default — user code is never
+// overwritten. '(none)' maps to DEFAULT_CODE; a mode with no entry here (or
+// every 'planned' mode) keeps the editor honest with its own fallback.
+// Adding a future mode's default = adding one entry, nothing else.
+export const DSA_DEFAULT_CODE = {
+  'recursion': [
+    'def fib(n):',
+    '    if n <= 1:',
+    '        return n',
+    '    return fib(n-1) + fib(n-2)',
+    '',
+    'print(fib(6))',
+  ].join('\n'),
+};
+
 // Hint text shown while the editor is unlocked.
 export const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 
