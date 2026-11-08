@@ -17,6 +17,19 @@ MAX_ITEMS = 100           # max elements kept per container
 MAX_VARS = 60             # max variables kept per snapshot
 VIZ_FILENAME = "<visualiser_code>"
 
+try:
+    # Pyodide host: the browser's own clock is the one honest wall-time source
+    # here (2026-11-08 silent-empty-run bug, ground-truth probed: the WASM
+    # build's time.monotonic() jumps ~14 s during the FIRST traced execution —
+    # a steady-state-verified discontinuity, steady-state both clocks agree —
+    # so t0-vs-event sampling via monotonic aborted the first run at its
+    # very first line event with a silent empty result).
+    from js import performance
+    _VIZ_CLOCK = lambda: performance.now() / 1000.0
+except ImportError:
+    # Local CPython (simulators, tests): proven honest.
+    _VIZ_CLOCK = time.monotonic
+
 
 def __viz_signature(fn):
     """Signature string for a function/method, with annotations kept as
@@ -266,7 +279,6 @@ def __viz_run(code):
         return __viz_obj_oid(self_obj)
     pending_ret = []   # returns not yet resolved on a recorded step (normally ≤1: the next return step resolves them)
     unwinding = False  # an exception is propagating; frame exits are not returns
-    t0 = time.monotonic()
 
     class VizStop(Exception):
         pass
@@ -297,7 +309,7 @@ def __viz_run(code):
         if event == "line":
             unwinding = False   # execution resumed (e.g. an except handler caught it)
             state["count"] += 1
-            if state["count"] > STEP_LIMIT or time.monotonic() - t0 > TIME_LIMIT:
+            if state["count"] > STEP_LIMIT or _VIZ_CLOCK() - t0 > TIME_LIMIT:
                 raise VizStop()
             if frame.f_lineno in skip_lines:
                 return tracer   # documentation line: nothing meaningful to show
@@ -371,7 +383,7 @@ def __viz_run(code):
                     value = "<?>"
                 pending_ret.append({"id": fid, "value": value})
                 state["count"] += 1
-                if state["count"] > STEP_LIMIT or time.monotonic() - t0 > TIME_LIMIT:
+                if state["count"] > STEP_LIMIT or _VIZ_CLOCK() - t0 > TIME_LIMIT:
                     raise VizStop()
                 snap = {}
                 try:
@@ -464,6 +476,9 @@ def __viz_run(code):
     if code_obj is not None:
         try:
             sys.settrace(tracer)
+            # Budget starts right here: data-science imports above are load
+            # time, not tracing time.
+            t0 = _VIZ_CLOCK()
             exec(code_obj, g)
         except VizStop:
             stopped = True

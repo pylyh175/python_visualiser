@@ -65,28 +65,21 @@ export function recursionSeenUpTo(i) {
 }
 
 export function renderTree() {
-  // Tabs exist only in Recursion mode, and only once the trace played so far
-  // (steps 0..idx) contains actual recursion: the same function's code
-  // re-entered on some recorded call chain. In (none) mode — the blank
-  // default — the output panel stays tab-free even for recursive code;
-  // rewinding before the first recursive step hides the tabs again
-  // (2026-11-03-dsa-mode-gating-design.md). Nested user calls (methods or
-  // helpers at chain depth ≥ 2) are not recursion and keep the tabs hidden.
-  const recursive = dsaFamily(state.dsaMode) === 'recursion' && recursionSeenUpTo(state.idx);
-  if (!recursive) {
-    els.outTabs.hidden = true;
-    els.outTitle.hidden = false;
-    els.output.hidden = false;
-    els.treeBody.hidden = true;
-    state.outTab = 'out'; state.userTab = false; state.treeAnnounced = false;
-    return;
-  }
+  // Tabs exist for the WHOLE run in Recursion mode (2026-11-08 user report:
+  // right after Visualize — before the first step — the Recursion tab must
+  // already be clickable, showing the honest "(no calls yet)" empty tree).
+  // renderOutPanel only calls here with a live trace in this family, so the
+  // family itself is the only gate; the earlier recursionSeenUpTo(idx) gate
+  // (2026-11-02-recursion-detection-design.md) deferred the tab to the first
+  // re-entrant chain, which hid it exactly when a user looks for it. Stepping
+  // back before that first chain now keeps the tab instead of hiding it.
+  // The auto-switch latch below still fires only on real re-entry.
   els.outTabs.hidden = false;
   els.outTitle.hidden = true;
   // Once the current chain starts re-entering code, show the tree (first time
   // only — after that a manual tab choice is sticky until the run is reset).
   const cur = state.steps[state.idx].stack || [];
-  if (dsaFamily(state.dsaMode) === 'recursion' && !state.userTab && !state.treeAnnounced && chainIsRecursive(cur)) {
+  if (!state.userTab && !state.treeAnnounced && chainIsRecursive(cur)) {
     state.treeAnnounced = true;
     state.outTab = 'tree';
   }
