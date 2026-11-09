@@ -422,19 +422,36 @@ def __viz_run(code):
                 steps.append(step)
         return tracer
 
-    def _viz_data_science_globals():
-        g = {"__name__": "__main__", "__builtins__": builtins}
-        # expose data science libraries if available in this Python environment
-        # users can import them exactly like regular Python modules
-        for lib_name in ["numpy", "pandas", "matplotlib", "sklearn", "scikit-learn"]:
+    def _viz_user_import_names(code):
+        # Top-level module names the code itself imports (from `import X.Y`
+        # and `from X import …`). Keys off the code, not a fixed list.
+        names = set()
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return names
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for a in node.names:
+                    names.add(a.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names.add(node.module.split(".")[0])
+        return names
+
+    def _viz_data_science_globals(code):
+        glob = {"__name__": "__main__", "__builtins__": builtins}
+        # LAZY pre-exposure: now only modules the code actually imports are
+        # pre-exposed, so unused libraries cost nothing and each one's init
+        # is paid exactly once which is on the first run that really uses it.
+        for name in _viz_user_import_names(code):
             try:
-                g[lib_name] = __import__(lib_name)
+                glob[name] = __import__(name)
             except ImportError:
                 # preserve "ImportError" for when users try to import it
                 pass
-        return g
+        return glob
 
-    g = _viz_data_science_globals()
+    glob = _viz_data_science_globals(code)
     old_stdout = sys.stdout
     sys.stdout = out
     stopped = False
