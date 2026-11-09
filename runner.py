@@ -496,7 +496,7 @@ def __viz_run(code):
             # Budget starts right here: data-science imports above are load
             # time, not tracing time.
             t0 = _VIZ_CLOCK()
-            exec(code_obj, g)
+            exec(code_obj, glob)
         except VizStop:
             stopped = True
         except BaseException as e:
@@ -545,7 +545,7 @@ def __viz_run(code):
         # body ends and survive only via sticky — without this merge the
         # synthetic final step would make them vanish right at the last step.
         add_final(list(sticky.items()))
-        add_final(g.items())
+        add_final(glob.items())
         steps.append({"line": final_line, "locals": final_locals,
                       "outLen": len(output), "finished": True,
                       "stack": steps[-1].get("stack", [])})
