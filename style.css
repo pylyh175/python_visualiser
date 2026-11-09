@@ -453,7 +453,7 @@ textarea[readonly] {
 
 /* ---------- right: variables & output ---------- */
 #right {
-  width: 430px;
+  width: calc(50% - 10px);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -682,8 +682,21 @@ textarea[readonly] {
   to { opacity: 0; transform: scale(0.85) translateY(-8px); }
 }
 
-#varsPanel { flex-shrink: 0; max-height: 45%; }
+/* Default vertical split (2026-11-09 redesign, grilled Q3): fixed 50/50 of
+   the right column — column chrome = gap 12 + #vdivider 2 + gap 12 = 26px,
+   split evenly: Variables gets 50% - 13px, Output's flex:1 fills the rest.
+   Plain height, NOT flex-basis: a flex-basis would outrank the JS drag's
+   inline height override (browser probe caught exactly that — drag applied
+   474px while the panel sat frozen at its half-height), and dblclick clears
+   the inline so this default re-takes over. */
+#varsPanel {
+  flex-grow: 0;
+  flex-shrink: 0;
+  height: calc(50% - 13px);
+}
 #varsBody {
+  flex: 1;         /* fill the panel's (now fixed 50/50) height… */
+  min-height: 0;   /* …and scroll instead of pushing past its clip */
   overflow: auto;
   padding: 8px 0;
   font-family: var(--mono);

@@ -133,9 +133,7 @@ export const STEP_MARGIN = 22;        // px of breathing room so a tracked line 
 export const STEP_ANIM_MS = 150;      // glide time for automatic step adjustments
 
 // ── Splitters ──
-export const SPLIT_KEY = 'vizSplitWidth';   // localStorage key for the editor/output split
 export const MIN_RIGHT = 260;               // narrowest the output column may get
 export const MIN_LEFT = 320;                // narrowest the editor column may get
-export const VARS_KEY = 'vizVarsHeight';    // localStorage key for the variables-panel split
 export const MIN_VARS = 48;                 // shortest the variables panel may get
 export const OUT_BODY_MIN = 80;             // #outputBody's own min-height (style.css)

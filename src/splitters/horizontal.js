@@ -1,7 +1,7 @@
 /* ═══════════════ Splitter: editor ↔ output column width ═══════════════ */
 
 import { els } from '../dom.js';
-import { SPLIT_KEY, MIN_RIGHT, MIN_LEFT } from '../config.js';
+import { MIN_RIGHT, MIN_LEFT } from '../config.js';
 import { syncScroll } from '../editor/render.js';
 
 // Clamp a requested output-column width to what the window can hold.
@@ -17,9 +17,9 @@ export function applyRightWidth(px) {
 }
 
 export function initSplitter() {
-  // Restore the width chosen in a previous session.
-  const saved = Number(localStorage.getItem(SPLIT_KEY));
-  if (saved) applyRightWidth(saved);
+  // Default layout is the CSS 50/50 half-guess (style.css#right). Resizes are
+  // session-only: no persistence — every fresh load re-applies the default,
+  // double-click re-applies it too.
 
   let dragging = false;
 
@@ -42,20 +42,22 @@ export function initSplitter() {
     els.divider.classList.remove('dragging');
     document.body.classList.remove('resizing');
     try { els.divider.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
-    localStorage.setItem(SPLIT_KEY, String(els.right.getBoundingClientRect().width));
   };
   els.divider.addEventListener('pointerup', endDrag);
   els.divider.addEventListener('pointercancel', endDrag);
 
-  // Double-click returns to the default split.
+  // Double-click returns to the default 50/50 split (clears the inline px;
+  // the CSS default re-takes over).
   els.divider.addEventListener('dblclick', () => {
     els.right.style.width = '';
-    localStorage.removeItem(SPLIT_KEY);
     syncScroll();
   });
 
-  // Keep the clamps honest when the window itself is resized.
+  // The CSS 50/50 default adapts to window resizes on its own; only a
+  // user-set inline width needs re-clamping.
   window.addEventListener('resize', () => {
-    applyRightWidth(els.right.getBoundingClientRect().width);
+    if (els.right.style.width) {
+      applyRightWidth(els.right.getBoundingClientRect().width);
+    }
   });
 }

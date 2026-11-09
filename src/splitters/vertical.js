@@ -1,7 +1,7 @@
 /* ═══════════════ Splitter: variables ↔ output panel height ═══════════════ */
 
 import { els } from '../dom.js';
-import { VARS_KEY, MIN_VARS, OUT_BODY_MIN } from '../config.js';
+import { MIN_VARS, OUT_BODY_MIN } from '../config.js';
 import { syncScroll } from '../editor/render.js';
 
 // Clamp a requested variables-panel height to what the column can hold.
@@ -13,16 +13,16 @@ export function applyVarsHeight(px) {
   const avail = right.height - gap * 2 - outMin;
   const h = Math.min(Math.max(px, MIN_VARS), Math.max(MIN_VARS, avail));
   els.varsPanel.style.height = h + 'px';
-  // The drag must win over the 45% max-height cap in style.css.
+  // The drag's inline height must win over the CSS default flex-basis.
   els.varsPanel.style.maxHeight = 'none';
   syncScroll();
   return h;
 }
 
 export function initVarsSplitter() {
-  // Restore the height chosen in a previous session.
-  const saved = Number(localStorage.getItem(VARS_KEY));
-  if (saved) applyVarsHeight(saved);
+  // Default layout is the CSS fixed 50/50 split (style.css#varsPanel).
+  // Resizes are session-only: no persistence — every fresh load re-applies
+  // the default, double-click re-applies it too.
 
   let dragging = false;
 
@@ -46,22 +46,22 @@ export function initVarsSplitter() {
     els.vdivider.classList.remove('dragging');
     document.body.classList.remove('resizing-v');
     try { els.vdivider.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
-    localStorage.setItem(VARS_KEY, String(els.varsPanel.getBoundingClientRect().height));
   };
   els.vdivider.addEventListener('pointerup', endDrag);
   els.vdivider.addEventListener('pointercancel', endDrag);
 
-  // Double-click returns to the default split (content-sized, 45%-capped).
+  // Double-click returns to the default fixed 50/50 split (clears the
+  // inline height; the CSS default re-takes over).
   els.vdivider.addEventListener('dblclick', () => {
     els.varsPanel.style.height = '';
     els.varsPanel.style.maxHeight = '';
-    localStorage.removeItem(VARS_KEY);
     syncScroll();
   });
 
-  // Keep the clamps honest when the window itself is resized.
+  // The CSS 50/50 default adapts to window resizes on its own; only a
+  // user-set inline height needs re-clamping.
   window.addEventListener('resize', () => {
-    if (localStorage.getItem(VARS_KEY)) {
+    if (els.varsPanel.style.height) {
       applyVarsHeight(els.varsPanel.getBoundingClientRect().height);
     }
   });
