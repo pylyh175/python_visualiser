@@ -72,14 +72,8 @@ export async function init() {
     els.status.classList.add('ready');
     syncVisualizeEnabled();
 
-    // Warm-import the data-science modules in the background (measured
-    // 2026-11-09, fresh headless tab): boot FETCHES the wheels but
-    // loadPackage does not initialise the Python modules, so the FIRST
-    // Visualize of code importing data-science libraries paid the module
-    // init bill inside 'Executing…' — pandas 4.6 s, sklearn 6.7 s,
-    // matplotlib 1.8 s, numpy 1.0 s — while warm runs measure 53-120 ms
-    // click-to-first-step. Fire-and-forget: typing time covers the import
-    // window; TIME_LIMIT is a runaway cap, not a wait, and stays 10 s.
+    /* Warm-import-after-ready DISABLED
+
     void (async () => {
       for (const modName of ["numpy", "pandas", "matplotlib", "sklearn"]) {
         try {
@@ -89,6 +83,7 @@ export async function init() {
         }
       }
     })();
+    */
   } catch (err) {
     // Surface the REAL failure instead of the old one-size "check internet"
     // guess (user report 2026-11-06): CDN fetch, runner.py execution and the
