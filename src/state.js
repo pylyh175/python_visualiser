@@ -8,6 +8,13 @@ export const state = {
   // Pyodide runtime
   pyodide: null,          // the loaded Pyodide instance
   runnerSource: null,     // runner.py text, fetched once at startup
+  pyodideReady: false,    // true ONLY after runner.py executed and __viz_run
+                          // was verified callable (pyodide.js). Visualize is
+                          // gated on this (lock.js + runner.js guard): users
+                          // type during the multi-second boot, and a click
+                          // before __viz_run exists raised "Internal error:
+                          // NameError: __viz_run is not defined"
+                          // (2026-11-11 user report).
 
   // Current trace
   steps: [],              // recorded execution steps

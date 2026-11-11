@@ -10,7 +10,12 @@ import { HINT_DEFAULT } from './config.js';
 // a mode change under a live run would be meaningless — and, once modules
 // attach to modes, dangerous.
 export function syncVisualizeEnabled() {
-  els.visualize.disabled = state.runInProgress || !els.textarea.value.trim();
+  // pyodideReady gate (2026-11-11 user report): the runtime takes many
+  // seconds to boot and users type during it — the input listener calls
+  // this, so without the gate the button armed BEFORE __viz_run existed
+  // and a click then raised "Internal error: NameError: __viz_run is not
+  // defined". The button stays inert until pyodide.js flips the flag.
+  els.visualize.disabled = state.runInProgress || !state.pyodideReady || !els.textarea.value.trim();
   els.dsaTrigger.disabled = state.runInProgress;
 }
 

@@ -30,6 +30,11 @@ export function resetRun() {
 }
 
 els.visualize.addEventListener('click', async () => {
+  // Belt-and-braces gate on top of the disabled-button UI state (lock.js):
+  // a programmatic or stale-DOM click must never reach the runner chain
+  // before __viz_run exists (2026-11-11 user report: "Internal error:
+  // NameError: __viz_run is not defined" from a boot-window click).
+  if (!state.pyodideReady) return;
   const code = els.textarea.value;
   if (!code.trim()) {
     // Nothing to visualize (the button is disabled for this, but guard the

@@ -67,7 +67,11 @@ export async function init() {
       throw new Error('__viz_run not defined after runner.py execution');
     }
     console.log('__viz_run callable in pyodide.globals ✓');
-    
+    // The runtime is only NOW usable: runner.py executed and __viz_run was
+    // verified against the exact globals object the run path uses. From
+    // here the Visualize gate (lock.js / runner.js) lets clicks through.
+    state.pyodideReady = true;
+
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
     syncVisualizeEnabled();
