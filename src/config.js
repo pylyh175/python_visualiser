@@ -137,3 +137,32 @@ export const MIN_RIGHT = 260;               // narrowest the output column may g
 export const MIN_LEFT = 320;                // narrowest the editor column may get
 export const MIN_VARS = 48;                 // shortest the variables panel may get
 export const OUT_BODY_MIN = 80;             // #outputBody's own min-height (style.css)
+
+// ── Data-science wheels: deferred to first use (2026-11-13, grilled Q1–Q2) ──
+// Boot used to loadPackage pandas+matplotlib+sklearn before the run path —
+// ~15–20 s of wheel fetch (sklearn alone pulls scipy+joblib+threadpoolctl)
+// before the ready pill. Now boot fetches numpy only (near-instant, and
+// pandas/matplotlib depend on it), and a run fetches the wheels its own
+// code imports just before executing. One table is the single source of
+// truth: Python import name → Pyodide package name (sklearn's distribution
+// is 'scikit-learn' — the alias the boot loop already had to carry).
+export const DS_PACKAGES = {
+  numpy: 'numpy',
+  pandas: 'pandas',
+  matplotlib: 'matplotlib',
+  sklearn: 'scikit-learn',
+};
+
+// Pyodide package names a piece of code needs (root module of every
+// `import X` / `from X import …` present in DS_PACKAGES), order-stable by
+// first appearance. Plain string scan: runner.py's ast-based
+// _viz_user_import_names is nested inside __viz_run and unreachable from
+// JS, and the table keeps the audit able to pin the mapping.
+export function neededDsPackages(code) {
+  const roots = new Set();
+  const re = /^\s*(?:import\s+([\w.]+)|from\s+([\w.]+)\s+import\b)/gm;
+  for (let m; (m = re.exec(code)) !== null;) {
+    roots.add((m[1] || m[2]).split('.')[0]);
+  }
+  return [...roots].filter((r) => r in DS_PACKAGES).map((r) => DS_PACKAGES[r]);
+}

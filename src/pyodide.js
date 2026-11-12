@@ -34,16 +34,18 @@ export async function init() {
       totalMemory: 4 * 1024 * 1024,   // 4 MB heap for the WASM runtime
     });
 
-    // Load data science libraries into Pyodide environment
-    // This provides the same foundation for browser execution as the Python runner
-    for (const libName of ["numpy", "pandas", "matplotlib", "sklearn", "scikit-learn"]) {
-      try {
-        await state.pyodide.loadPackage(libName);
-      } catch (e) {
-        // library not available in this Pyodide installation; preserve the error
-        // for when users try to import it
-        console.warn(`Pyodide package '${libName}' not available:`, e.message);
-      }
+    // Data-science wheels are DEFERRED to first use (2026-11-13): boot
+    // fetches numpy only — it loads near-instantly from the default channel
+    // and pandas/matplotlib depend on it — while pandas/matplotlib/sklearn
+    // cost ~15 s of wheel fetch here and made the ready pill that late.
+    // A run now fetches the wheels its own code imports (runner.js via
+    // neededDsPackages), so boot stays smooth and unused wheels never load.
+    try {
+      await state.pyodide.loadPackage('numpy');
+    } catch (e) {
+      // numpy unavailable in this Pyodide installation; preserve the error
+      // for when users try to import it
+      console.warn('Pyodide package numpy not available:', e.message);
     }
 
     console.log('Executing runner.py in Pyodide...');
@@ -75,19 +77,6 @@ export async function init() {
     els.status.textContent = 'Python ready ✓';
     els.status.classList.add('ready');
     syncVisualizeEnabled();
-
-    /* Warm-import-after-ready DISABLED
-
-    void (async () => {
-      for (const modName of ["numpy", "pandas", "matplotlib", "sklearn"]) {
-        try {
-          await state.pyodide.runPythonAsync(`__import__('${modName}')`);
-        } catch (e) {
-          console.warn(`warm import '${modName}' failed:`, e && e.message);
-        }
-      }
-    })();
-    */
   } catch (err) {
     // Surface the REAL failure instead of the old one-size "check internet"
     // guess (user report 2026-11-06): CDN fetch, runner.py execution and the
