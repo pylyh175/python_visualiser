@@ -29,6 +29,17 @@ export function renderVars() {
 // steps 0..idx only: forward steps extend the sequence, any rewind
 // reproduces the earlier layout exactly.
 //
+// Definitions pinned to the top: the user's readability ask — the function
+// must appear ABOVE the arguments it is called with. The call-step snapshot
+// layers frame locals above module globals, so first-appearance order alone
+// shows `a, b, n` before the function at the very first step. Names whose
+// value has EVER matched a definition shape (function `qualname(sig)…`,
+// class `Name { … }`) live in a sticky top block; instances (`Name instance { … }`)
+// and all data stay below. Sticky once-ever so a name never jumps blocks
+// (same discipline as "nothing ever reorders"); each block keeps first-appearance slot order.
+// A def-after-code inserts at the bottom of the definition block, pushing
+// the data block down — accepted (grilled Q4); defs-at-top is the norm.
+//
 // Scope-ended persistence: a name whose frame has returned
 // (its locals left the runner's snapshots — Python scope semantics) STAYS
 // in the panel until the run is reset, keeping its slot 
@@ -41,15 +52,37 @@ export function renderVars() {
 function collectVars(current) {
   const slot = new Map();
   const lastShown = new Map();
+  const isDef = new Map();   // sticky: ever shown as a function/class
   let seq = 0;
   for (let i = 0; i <= state.idx && i < state.steps.length; i++) {
     for (const [k, v] of Object.entries(state.steps[i].locals || {})) {
       if (!slot.has(k)) slot.set(k, seq++);
       lastShown.set(k, v);
+      if (!isDef.has(k) && looksLikeDefinition(v)) isDef.set(k, true);
     }
   }
+  const ordered = [...slot.keys()].sort((a, b) => slot.get(a) - slot.get(b));
   return {
-    names: [...slot.keys()].sort((a, b) => slot.get(a) - slot.get(b)),
+    names: [
+      ...ordered.filter((k) => isDef.get(k)),
+      ...ordered.filter((k) => !isDef.get(k)),
+    ],
     lastShown,
   };
+}
+
+// Shape checks on the runner's formatted values (runner.py
+// __viz_make_safe): a function renders as "qualname(signature)" optionally
+// followed by " -> return-type" (qualnames may contain dots or
+// "<locals>."), a class as "Name { method(sig), … }" — while an INSTANCE
+// renders as "Name instance { … }" and must NOT match. Instances and all
+// data stay below the definition block. Panel-side detection (grilled Q3):
+// a data string that happens to look like a call (x = "f(1)") is the one
+// accepted false positive; the formats themselves are runner-generated and
+// audit-pinned.
+function looksLikeDefinition(v) {
+  if (typeof v !== 'string') return false;
+  const FUNC_SHAPE = /^[A-Za-z_<>][A-Za-z0-9_.<>]*\(.*\)(?: -> .*)?$/;
+  const CLASS_SHAPE = /^[A-Za-z_][A-Za-z0-9_]* \{ .*$/;
+  return FUNC_SHAPE.test(v) || CLASS_SHAPE.test(v);
 }
