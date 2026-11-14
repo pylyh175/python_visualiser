@@ -6,6 +6,7 @@ import { STEP_MARGIN, STEP_ANIM_MS } from '../config.js';
 import { syncScroll } from '../editor/render.js';   // function-only cycle, see render.js note
 import { applyLock } from '../lock.js';
 import { render } from '../panels/output.js';
+import { pausePlayback } from './play.js';          // function-only cycle: play.js imports setIdx
 
 export function setIdx(n) {
   if (!state.steps.length) return;
@@ -174,19 +175,20 @@ els.textarea.addEventListener('pointerdown', cancelStepGlide, { passive: true })
 
 /* ---------- playback controls ---------- */
 
-els.first.addEventListener('click', () => setIdx(0));
-els.prev.addEventListener('click', () => setIdx(state.idx - 1));
-els.next.addEventListener('click', () => setIdx(state.idx + 1));
-els.last.addEventListener('click', () => setIdx(state.steps.length - 1));
+// Manual navigation pauses auto-play (grilled Q4) before moving.
+els.first.addEventListener('click', () => { pausePlayback(); setIdx(0); });
+els.prev.addEventListener('click', () => { pausePlayback(); setIdx(state.idx - 1); });
+els.next.addEventListener('click', () => { pausePlayback(); setIdx(state.idx + 1); });
+els.last.addEventListener('click', () => { pausePlayback(); setIdx(state.steps.length - 1); });
 
 // Slider jump: the input event is the single path for slider-driven
 // navigation; render() keeps the thumb in sync when idx moves by other means.
-els.slider.addEventListener('input', () => setIdx(Number(els.slider.value)));
+els.slider.addEventListener('input', () => { pausePlayback(); setIdx(Number(els.slider.value)); });
 
 document.addEventListener('keydown', (e) => {
   // The slider handles ←/→ natively when focused (its input event steps);
   // skip it here so one keypress never steps twice.
   if (e.target === els.textarea || e.target === els.slider) return;
-  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { setIdx(state.idx - 1); e.preventDefault(); }
-  if (e.key === 'ArrowRight' || e.key === 'PageDown') { setIdx(state.idx + 1); e.preventDefault(); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { pausePlayback(); setIdx(state.idx - 1); e.preventDefault(); }
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') { pausePlayback(); setIdx(state.idx + 1); e.preventDefault(); }
 });

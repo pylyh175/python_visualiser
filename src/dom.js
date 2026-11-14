@@ -18,6 +18,8 @@ export const els = {
   prev: document.getElementById('btnPrev'),
   next: document.getElementById('btnNext'),
   last: document.getElementById('btnLast'),
+  play: document.getElementById('btnPlay'),
+  playSpeed: document.getElementById('playSpeed'),
   slider: document.getElementById('stepSlider'),
   stepLabel: document.getElementById('stepLabel'),
   output: document.getElementById('outputBody'),

@@ -27,6 +27,9 @@ export const state = {
   runInProgress: false,   // a Visualize run is currently executing
   locked: false,          // editor locked during playback until handback/edit
 
+  // Auto-play (navigation/play.js)
+  playing: false,         // a playback pass is advancing steps on a timer
+
   // Output-panel tab family (recursion tree / stack / two-pointers visualisers)
   dsaMode: 'none',        // current DSA id: 'none' | 'recursion' | ... | 'two-pointers.two-sum'
   outTab: 'out',          // active tab: 'out' | 'tree' | 'stack' | 'two-pointers' | 'reverse' | 'palindrome' | 'container'

@@ -132,6 +132,16 @@ export const STEP_MARGIN = 22;        // px of breathing room so a tracked line 
                                       // glues to the viewport edge
 export const STEP_ANIM_MS = 150;      // glide time for automatic step adjustments
 
+// ── Auto-play (navigation/play.js, 2026-11-15, grilled Q1–Q12) ──
+// Per-step delay in ms for each playback speed. Fixed delays, not scaled to
+// step count — a long run simply takes longer at Low, same as a video.
+export const PLAY_SPEEDS = {
+  low: 1000,
+  normal: 450,
+  high: 150,
+};
+export const PLAY_DEFAULT_SPEED = 'normal';   // session-only choice, resets per load
+
 // ── Splitters ──
 export const MIN_RIGHT = 260;               // narrowest the output column may get
 export const MIN_LEFT = 320;                // narrowest the editor column may get

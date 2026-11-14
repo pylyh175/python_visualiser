@@ -54,6 +54,12 @@
     <div class="panel" id="controlsPanel">
       <h2>Execution steps</h2>
       <div class="body" id="controls">
+        <button id="btnPlay" disabled title="Auto-advance through the steps">⏵ Play</button>
+        <select id="playSpeed" aria-label="Playback speed" title="450 ms per step">
+          <option value="low" title="1000 ms per step">Low</option>
+          <option value="normal" selected title="450 ms per step">Normal</option>
+          <option value="high" title="150 ms per step">High</option>
+        </select>
         <button id="btnFirst" disabled>⏮ First</button>
         <button id="btnPrev" disabled>◀ Prev</button>
         <button id="btnNext" disabled>Next ▶</button>

@@ -5,6 +5,7 @@ import { els } from './dom.js';
 import { DSA_MODES, DSA_STORE_KEY, dsaEntryById, DSA_DEFAULT_CODE, DEFAULT_CODE } from './config.js';
 import { render } from './panels/output.js';
 import { renderEditor } from './editor/render.js';
+import { stopPlayback } from './navigation/play.js';
 
 // The template currently filling the editor (per-mode defaults, grilled
 // Q1–Q6 2026-11-07). When a new mode is picked, the editor swaps ONLY if it
@@ -95,6 +96,7 @@ export function buildDsaMenu() {
 function selectDsaOption(id) {
   const entry = dsaEntryById(id);
   state.dsaMode = entry.id;
+  stopPlayback();   // a mode swap hard-stops auto-play even if the trace survives (grilled Q10)
 
   // Breadcrumb: "Two Pointers › Two Sum" for sub-modes, plain label otherwise.
   const parent = DSA_MODES.find((m) => (m.subModes || []).some((s) => s.id === entry.id));

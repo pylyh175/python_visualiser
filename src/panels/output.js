@@ -29,6 +29,9 @@ export function render() {
   els.slider.max = String(Math.max(0, total - 1));
   els.slider.value = String(state.idx);
   els.slider.disabled = !playbackOn;
+  // Auto-play obeys the same gating (grilled Q5); while playing the button
+  // reads "⏸ Pause" and stays enabled — playbackOn is true whenever steps exist.
+  els.play.disabled = !playbackOn;
   renderOutput();
   renderVars();
   renderOutPanel();

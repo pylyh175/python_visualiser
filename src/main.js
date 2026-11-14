@@ -4,6 +4,7 @@
 // importing them is what installs their behavior.
 import './editor/input.js';
 import './navigation/steps.js';
+import './navigation/play.js';   // installs the play/pause + speed wiring
 import './panels/output.js';
 import './panels/twoPointers.js';
 import './runner.js';
