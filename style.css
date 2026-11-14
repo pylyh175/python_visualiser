@@ -499,6 +499,32 @@ textarea[readonly] {
   cursor: pointer;
 }
 #stepSlider:disabled { cursor: default; }
+/* Playback-speed select (2026-11-15 auto-play design, grilled Q3/Q8): styled
+   to match the neighbouring step buttons — panel bg, 1px border, 8px radius,
+   muted text — with the native arrow replaced by a chevron drawn in the
+   muted colour so it re-themes with dark mode (per-theme data URI below).
+   appearance:none + custom padding leaves room for it. */
+#playSpeed {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--muted);
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 26px 7px 10px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 10px 6px;
+}
+:root[data-theme="dark"] #playSpeed {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+#playSpeed:hover:not(:disabled) { background-color: var(--bg); }   /* matches button:hover */
+#playSpeed:focus { outline: none; border-color: var(--accent); }   /* matches .dsa-trigger:focus */
 .legend {
   display: flex;
   gap: 14px;
