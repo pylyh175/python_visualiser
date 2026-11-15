@@ -142,7 +142,7 @@ def __viz_make_safe(value, depth=0):
     return str(value)
 
 
-def __viz_locals(frame, sticky):
+def __viz_locals(frame, sticky, record=None):
     """Snapshot everything *visible* at this point, skipping dunders.
 
     Walks the call chain from the innermost frame out to the module:
@@ -156,6 +156,11 @@ def __viz_locals(frame, sticky):
     additionally remembered in `sticky`: once the body finishes they
     live on only as class attributes, but their individual entries
     stay visible for the rest of the run (last-known value).
+
+    `record(name, value)` (2026-11-15 memory-diagram design, grilled
+    Q1–Q9), when given, is called for every name whose formatted value
+    was stored — the caller uses it to build the step's parallel node
+    graph (aliased objects draw one box with several arrows).
     """
     out = {}
 
@@ -173,6 +178,12 @@ def __viz_locals(frame, sticky):
                 out[name] = __viz_make_safe(value)
             except Exception:
                 out[name] = "<?>"
+            else:
+                if record is not None:
+                    try:
+                        record(name, value)
+                    except Exception:
+                        pass
         return True
 
     # Innermost user-code frame; the executing frame is always the chain's
@@ -277,6 +288,92 @@ def __viz_run(code):
                 types.BuiltinFunctionType):
             return None
         return __viz_obj_oid(self_obj)
+
+    # ── Memory-diagram graph (2026-11-15, grilled Q1–Q9) ──
+    # Alongside the legacy formatted values, each step's displayed
+    # container/instance values are emitted as a node graph keyed by the
+    # same weakref-guarded object ids the stack panel consumes. Aliasing
+    # (b = a) then draws ONE box with multiple inbound arrows, cycles
+    # render as loop-back markers, and the panel never recurses forever.
+    # The legacy formats stay untouched: looksLikeDefinition, stack.js
+    # and twoPointers.js keep consuming them. Node shape:
+    #   {"t": "list"|"tuple"|"dict"|"set", "items": [elem…]}
+    #   {"t": "inst", "cls": Name, "items": [[attr, elem]…]}
+    # where elem is a scalar, {"ref": oid} (already-seen object — the
+    # panel draws an arrow or, on a back-edge, a loop-back marker) or
+    # {"more": n} (the +N more sentinel). Dict keys and instance
+    # attribute names lead their slots; values follow.
+    MEM_MAX_ITEMS = 12   # per container; the panel shows 8 then "+N more"
+    MEM_MAX_DEPTH = 4    # box levels; the panel renders 3 and shows "…" beyond
+
+    def __viz_mem_classify(v):
+        # Mirrors __viz_make_safe's branch order: containers and plain
+        # instances become graph nodes; functions/classes/modules stay
+        # text (definitions); everything else inlines as a scalar.
+        if isinstance(v, (list, tuple, dict, set, frozenset)):
+            return "container"
+        if isinstance(v, (types.FunctionType, types.MethodType, type)) \
+                or isinstance(v, types.ModuleType):
+            return "text"
+        if hasattr(v, "__dict__"):
+            return "instance"
+        return "scalar"
+
+    def __viz_mem_node(value, depth, mem):
+        # Returns {"ref": oid} for containers/instances (registering the
+        # node — and marking it emitted — BEFORE walking its children, so
+        # a cycle reaches the {"ref"} branch instead of recursing), a
+        # scalar for inline values, "…" past the depth cap, or None when
+        # the value carries no node at all (definitions stay text rows).
+        kind = __viz_mem_classify(value)
+        if kind == "text":
+            return None
+        if kind == "scalar":
+            try:
+                return __viz_make_safe(value, depth)
+            except Exception:
+                return "<?>"
+        if depth > MEM_MAX_DEPTH:
+            return "…"
+        oid = __viz_obj_oid(value)
+        if oid in mem["emitted"]:
+            return {"ref": oid}
+        if isinstance(value, dict):
+            node = {"t": "dict", "items": []}
+            n = len(value)
+            for k, v in value.items():
+                if len(node["items"]) >= MEM_MAX_ITEMS:
+                    break
+                key = k if isinstance(k, str) else str(k)
+                node["items"].append([key[:60], __viz_mem_node(v, depth + 1, mem)])
+        elif isinstance(value, (set, frozenset)):
+            node = {"t": "set", "items": []}
+            n = len(value)
+            for v in list(value)[:MEM_MAX_ITEMS]:
+                node["items"].append(__viz_mem_node(v, depth + 1, mem))
+        elif isinstance(value, (list, tuple)):
+            node = {"t": "list" if isinstance(value, list) else "tuple", "items": []}
+            n = len(value)
+            for v in value[:MEM_MAX_ITEMS]:
+                node["items"].append(__viz_mem_node(v, depth + 1, mem))
+        else:
+            node = {"t": "inst", "cls": type(value).__name__, "items": []}
+            attrs = [(k, v) for k, v in value.__dict__.items() if not k.startswith("__")]
+            n = len(attrs)
+            for k, v in attrs[:MEM_MAX_ITEMS]:
+                node["items"].append([k, __viz_mem_node(v, depth + 1, mem)])
+        if n > MEM_MAX_ITEMS:
+            node["items"].append({"more": n - MEM_MAX_ITEMS})
+        mem["nodes"][str(oid)] = node
+        mem["emitted"].add(oid)
+        return {"ref": oid}
+
+    def __viz_mem_record(name, value, mem):
+        # Root of the diagram for one variable slot; scalars and
+        # definitions contribute nothing (the panel keeps their text).
+        root = __viz_mem_node(value, 1, mem)
+        if isinstance(root, dict) and "ref" in root:
+            mem["roots"][name] = root
     pending_ret = []   # returns not yet resolved on a recorded step (normally ≤1: the next return step resolves them)
     unwinding = False  # an exception is propagating; frame exits are not returns
 
@@ -314,10 +411,13 @@ def __viz_run(code):
             if frame.f_lineno in skip_lines:
                 return tracer   # documentation line: nothing meaningful to show
             snap = {}
+            mem = None
             try:
-                snap = __viz_locals(frame, sticky)
+                mem = {"roots": {}, "nodes": {}, "emitted": set()}
+                snap = __viz_locals(frame, sticky,
+                                    lambda n, v: __viz_mem_record(n, v, mem))
             except Exception:
-                pass
+                mem = None
             # Call stack: chain of user-code frames, outermost (module) first.
             # Stops short when calls went past the id cap — the tree then
             # shows a "+N more calls" summary instead of exact structure.
@@ -342,6 +442,8 @@ def __viz_run(code):
             chain.reverse()
             step = {"line": frame.f_lineno, "locals": snap, "outLen": out.tell(),
                     "stack": chain}
+            if mem and mem["roots"]:
+                step["mem"] = {"roots": mem["roots"], "nodes": mem["nodes"]}
             if pending_ret:
                 step["ret"] = pending_ret
                 pending_ret = []
@@ -386,10 +488,13 @@ def __viz_run(code):
                 if state["count"] > STEP_LIMIT or _VIZ_CLOCK() - t0 > TIME_LIMIT:
                     raise VizStop()
                 snap = {}
+                mem = None
                 try:
-                    snap = __viz_locals(frame, sticky)
+                    mem = {"roots": {}, "nodes": {}, "emitted": set()}
+                    snap = __viz_locals(frame, sticky,
+                                        lambda n, v: __viz_mem_record(n, v, mem))
                 except Exception:
-                    pass
+                    mem = None
                 # Call stack active at this instant (chain of user frames,
                 # outermost first). fid was popped above, so re-insert the
                 # returning frame's own id while walking its chain.
@@ -416,6 +521,8 @@ def __viz_run(code):
                 chain.reverse()
                 step = {"line": frame.f_lineno, "locals": snap, "outLen": out.tell(),
                         "stack": chain, "retStep": True}
+                if mem and mem["roots"]:
+                    step["mem"] = {"roots": mem["roots"], "nodes": mem["nodes"]}
                 if pending_ret:
                     step["ret"] = pending_ret
                     pending_ret = []
@@ -523,6 +630,10 @@ def __viz_run(code):
         last_line = steps[-1]["line"]
         final_line = error_line if (error_line and error_line > 0) else last_line
         final_locals = {}
+        # The final step carries diagrams too (2026-11-15 memory-diagram
+        # round): a fresh mem graph recorded for exactly the names add_final
+        # stores, in the same sticky-then-globals order.
+        final_mem = {"roots": {}, "nodes": {}, "emitted": set()}
 
         def add_final(names):
             for name, value in names:
@@ -537,6 +648,11 @@ def __viz_run(code):
                     final_locals[name] = __viz_make_safe(value)
                 except Exception:
                     final_locals[name] = "<?>"
+                else:
+                    try:
+                        __viz_mem_record(name, value, final_mem)
+                    except Exception:
+                        pass
             return True
 
         # Keep the layout of the regular module snapshots: class-body names
@@ -549,6 +665,9 @@ def __viz_run(code):
         steps.append({"line": final_line, "locals": final_locals,
                       "outLen": len(output), "finished": True,
                       "stack": steps[-1].get("stack", [])})
+        if final_mem["roots"]:
+            steps[-1]["mem"] = {"roots": final_mem["roots"],
+                                "nodes": final_mem["nodes"]}
         # Returns still pending at the end (e.g. the outermost call of a
         # recursion — no line event follows them) resolve on this step.
         if pending_ret:

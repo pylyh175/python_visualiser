@@ -734,6 +734,45 @@ textarea[readonly] {
 #varsBody td.v { color: var(--text-body); word-break: break-all; white-space: pre-wrap; }
 #varsBody .empty { color: var(--muted); padding: 4px 12px; font-size: 13px; }
 
+/* ── Boxes-and-arrows memory diagram (2026-11-15, grilled Q1–Q9) ──
+   Container/instance values in the variables panel render as boxes instead
+   of formatted strings: one box per object (its canonical first appearance
+   carries the owner's name in the cap), later names holding the SAME object
+   render `──▶ <label>` (the alias arrow), nested containers draw nested
+   boxes, back-edges draw `↺`. Pure flow HTML — the td's own word-break
+   handles wrapping, so no positioning math and no SVG. The old formatted
+   string rides along as the row's hover tooltip (.mem-wrap[title]). */
+#varsBody .mem-wrap { cursor: help; }
+#varsBody .mem-box {
+  display: inline-block;
+  margin: 2px 6px 2px 0;
+  padding: 4px 6px 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  vertical-align: top;
+}
+#varsBody .mem-cap {
+  display: block;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+#varsBody .mem-cap i { font-style: normal; font-weight: 400; color: var(--muted); font-size: 11px; }
+#varsBody .mem-slots { display: flex; flex-wrap: wrap; gap: 3px; }
+#varsBody .mem-slot {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  white-space: nowrap;
+}
+#varsBody .mem-slot i { font-style: normal; color: var(--muted); margin-right: 4px; font-size: 11px; }
+#varsBody .mem-empty, #varsBody .mem-more, #varsBody .mem-deep { color: var(--muted); }
+#varsBody .mem-ref { color: var(--accent); font-weight: 600; }
+#varsBody .mem-cycle { color: var(--orange); }
+
 /* Two Pointers visualiser panel */
 #twoPtrsBody {
   flex: 1;
