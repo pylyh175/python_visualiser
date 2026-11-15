@@ -47,7 +47,10 @@ export function renderVars() {
    nested containers draw as nested boxes, and a back-edge draws `↺` so a
    self-referencing structure can never recurse forever. The old formatted
    string stays as the row's hover tooltip (grilled Q8). Pure div/span HTML
-   in the panel's house style — no SVG, no positioning math. */
+   in the panel's house style — no SVG, no positioning math.
+   Round 2 (2026-11-15, grilled Q1–Q6): a ROOT-level list/tuple whose
+   elements are all scalars renders as an index-row × value-row GRID
+   instead of boxes — see memGrid below. */
 
 const MEM_SHOW_ITEMS = 8;   // grilled Q5: first 8 elements, then "+N more"
 const MEM_SHOW_DEPTH = 3;   // box levels visible; anything deeper renders …
@@ -91,6 +94,19 @@ function memBox(oid, nodes, rendered, path, depth, owner) {
     && items[items.length - 1] !== null && 'more' in items[items.length - 1]
     ? items[items.length - 1].more : 0;
   const real = moreVal ? items.slice(0, -1) : items;
+  // list/tuple whose shown elements are all scalars renders as an
+  // index-row × value-row grid instead of boxes — the user's example
+  // (`numbers = [3, 1, 4, 1, 5]` → index 0 1 2 3 4 / numbers 3 1 4 1 5).
+  // Empty sequences stay `(empty)`, non-scalar elements (refs, the '…'
+  // depth marker) keep the boxes-and-arrows rendering, and deeper levels
+  // never grid (a nested flat list draws as a nested box). The canonical
+  // label bookkeeping above is shared with the boxes, so aliasing
+  // (`──▶ a`) works unchanged against a grid.
+  if (depth === 1 && (node.t === 'list' || node.t === 'tuple')
+    && (real.length || moreVal) && real.every(isMemScalar)) {
+    path.pop();
+    return memGrid(label, kind, real, moreVal);
+  }
   if (!real.length && !moreVal) {
     slots = '<span class="mem-slot mem-empty">(empty)</span>';
   } else {
@@ -101,6 +117,34 @@ function memBox(oid, nodes, rendered, path, depth, owner) {
   }
   path.pop();
   return `<span class="mem-box"><span class="mem-cap">${escapeHtml(label)} <i>${escapeHtml(kind)}</i></span><span class="mem-slots">${slots}</span></span>`;
+}
+
+// A grid-able element (grilled round 2 Q3): anything the boxes would
+// inline — numbers, strings, booleans, None (runner null). A ref/more
+// marker is an object, and the '…' string is the runner's depth-cap
+// marker — either falls back to the boxes-and-arrows rendering.
+function isMemScalar(v) {
+  return v !== '…' && (v === null || typeof v !== 'object');
+}
+
+// row 1 is the literal `index` label (muted) + the positions; 
+// row 2 is the owner name (+ the muted type chip) + the values.
+// Same caps as the boxes (MEM_SHOW_ITEMS shown, then a `+N more` cell)
+// and the same cell formatting — values go through memValue, so strings
+// are quoted/truncated and None is None.
+// The extra cap column shows `…` on the index row and `… +N more` on the value row.
+function memGrid(label, kind, items, extra) {
+  const shown = items.slice(0, MEM_SHOW_ITEMS);
+  const hidden = (items.length - shown.length) + extra;
+  const cols = shown.length + (hidden ? 1 : 0);
+  const idxCells = shown.map((_, i) => `<span class="mem-gcell mem-gidx">${i}</span>`).join('');
+  const valCells = shown.map((v) => `<span class="mem-gcell">${memValue(v, {}, new Map(), [], 1)}</span>`).join('');
+  const idxMore = hidden ? '<span class="mem-gcell mem-gidx">…</span>' : '';
+  const valMore = hidden ? `<span class="mem-gcell mem-gmore">… +${hidden} more</span>` : '';
+  return `<span class="mem-grid" style="grid-template-columns:auto repeat(${cols}, minmax(2.2em, 1fr))">`
+    + `<span class="mem-glabel mem-ghead">index</span>${idxCells}${idxMore}`
+    + `<span class="mem-glabel mem-gname">${escapeHtml(label)} <i>${escapeHtml(kind)}</i></span>${valCells}${valMore}`
+    + '</span>';
 }
 
 // One element slot: key:value for dicts/instances, indexed for sequences,

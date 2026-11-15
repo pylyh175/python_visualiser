@@ -774,6 +774,37 @@ textarea[readonly] {
 #varsBody .mem-ref { color: var(--accent); font-weight: 600; }
 #varsBody .mem-cycle { color: var(--orange); }
 
+/* A root-level list/tuple of all-scalar elements renders as an index-row
+× value-row grid instead of boxes: row 1 literal `index` + positions
+(muted, dashed cells), row 2 the owner name (+ muted type chip) +
+values. Same caps (8 shown, `+N more` cell) and cell formatting as the
+boxes; the formatted string stays the hover tooltip (.mem-wrap). */
+#varsBody .mem-grid {
+  display: inline-grid;
+  gap: 3px;
+  margin: 2px 6px 2px 0;
+  padding: 4px 6px 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  vertical-align: top;
+}
+#varsBody .mem-glabel { align-self: center; padding: 1px 6px 1px 2px; white-space: nowrap; }
+#varsBody .mem-ghead { color: var(--muted); font-size: 11px; text-align: right; }
+#varsBody .mem-gname { color: var(--accent); font-weight: 600; }
+#varsBody .mem-gname i { font-style: normal; font-weight: 400; color: var(--muted); font-size: 11px; }
+#varsBody .mem-gcell {
+  min-width: 1.6em;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  text-align: center;
+  white-space: nowrap;
+}
+#varsBody .mem-gidx { color: var(--muted); background: transparent; border-style: dashed; }
+#varsBody .mem-gmore { color: var(--muted); }
+
 /* Two Pointers visualiser panel */
 #twoPtrsBody {
   flex: 1;
