@@ -733,6 +733,7 @@ textarea[readonly] {
 #varsBody td.k { color: var(--accent); white-space: nowrap; width: 1%; }
 #varsBody td.v { color: var(--text-body); word-break: break-all; white-space: pre-wrap; }
 #varsBody .empty { color: var(--muted); padding: 4px 12px; font-size: 13px; }
+#varsBody tr.sub td.k { padding-left: 30px; }
 
 /* ── Boxes-and-arrows memory diagram (2026-11-15, grilled Q1–Q9) ──
    Container/instance values in the variables panel render as boxes instead

@@ -11,25 +11,30 @@ export function renderVars() {
   }
   const vars = state.steps[state.idx].locals || {};
   const mem = state.steps[state.idx].mem || null;
-  const { names, lastShown, lastMem } = collectVars(vars);
+  const { names, lastShown, lastMem, ownerCand } = collectVars(vars);
   if (!names.length) {
     els.vars.innerHTML = '<span class="empty">(no variables)</span>';
     return;
   }
   const hasOwn = (obj, k) => Object.prototype.hasOwnProperty.call(obj, k);
+  // Displayed value per name: the live binding while present, the
+  // last-shown value once the name's scope has ended.
+  const valueOf = (k) => (hasOwn(vars, k) ? vars[k] : lastShown.get(k));
   // One shared rendered/path pair per render: the FIRST row to show an oid
   // draws its canonical box; every later row (another name holding the same
   // object) renders the aliasing arrow instead of a duplicate box.
   const rendered = new Map();   // oid → label of its canonical box
   const path = [];              // oids currently being drawn (cycle detection)
-  const rows = names.map((k) => {
+  const sub = new Set();        // method rows nested under their class row
+  const rows = groupMethods(names, valueOf, ownerCand, sub).map((k) => {
     const live = hasOwn(vars, k);
-    const value = hasOwn(vars, k) ? vars[k] : lastShown.get(k);
+    const value = valueOf(k);
     // A persisted (scope-ended) container keeps the diagram of the step its
     // last-shown value came from — same discipline as lastShown values.
     const m = live ? mem : (lastMem.get(k) || null);
     const text = escapeHtml(fmtValue(value));
-    return `<tr><td class="k">${escapeHtml(k)}</td><td class="v">${memCell(k, value, m, text, rendered, path)}</td></tr>`;
+    const tr = sub.has(k) ? '<tr class="sub">' : '<tr>';
+    return `${tr}<td class="k">${escapeHtml(k)}</td><td class="v">${memCell(k, value, m, text, rendered, path)}</td></tr>`;
   }).join('');
   els.vars.innerHTML = `<table>${rows}</table>`;
 }
@@ -155,6 +160,10 @@ function memValue(v, nodes, rendered, path, depth) {
 // A def-after-code inserts at the bottom of the definition block, pushing
 // the data block down — accepted (grilled Q4); defs-at-top is the norm.
 //
+// Methods group under their owner class (2026-11-15, grilled Q1–Q6): the
+// class row keeps its definition-block position and its methods render as
+// indented sub-rows directly beneath it — see groupMethods below.
+//
 // Scope-ended persistence: a name whose frame has returned
 // (its locals left the runner's snapshots — Python scope semantics) STAYS
 // in the panel until the run is reset, keeping its slot 
@@ -170,6 +179,13 @@ function collectVars(current) {
   const lastShown = new Map();
   const lastMem = new Map();
   const isDef = new Map();   // sticky: ever shown as a function/class
+  // Sticky method-owner candidates (2026-11-15 grouping, grilled Q1–Q6):
+  // the first value a name ever showed with a `Cls.` qualname prefix names
+  // its owner class. Sticky once-ever (same discipline as isDef) so a
+  // method rebound to data keeps its group. Membership is decided at
+  // render time: the group only engages when the owner row exists and is
+  // still a class row (groupMethods below).
+  const ownerCand = new Map();
   let seq = 0;
   for (let i = 0; i <= state.idx && i < state.steps.length; i++) {
     const stepMem = state.steps[i].mem || null;
@@ -178,6 +194,10 @@ function collectVars(current) {
       lastShown.set(k, v);
       if (stepMem && stepMem.roots && hasOwnKey(stepMem.roots, k)) lastMem.set(k, stepMem);
       if (!isDef.has(k) && looksLikeDefinition(v)) isDef.set(k, true);
+      if (!ownerCand.has(k) && typeof v === 'string') {
+        const dot = v.indexOf('.');
+        if (dot > 0 && looksLikeDefinition(v)) ownerCand.set(k, v.slice(0, dot));
+      }
     }
   }
   const ordered = [...slot.keys()].sort((a, b) => slot.get(a) - slot.get(b));
@@ -188,7 +208,51 @@ function collectVars(current) {
     ],
     lastShown,
     lastMem,
+    ownerCand,
   };
+}
+
+// Methods nested under their owner class row (2026-11-15, grilled Q1–Q6).
+// Class-body methods reach the panel as sticky rows with EARLIER slots than
+// their class (the class only enters the globals snapshot when its body
+// finishes), so first-appearance order alone shows `push, pop, Stack` —
+// exactly the user's report. Fix: the class row keeps its place in the
+// definition block and its methods render directly beneath it (slot order
+// inside the group). Membership (grilled Q4): the owner candidate must
+// match a row that exists AND is still a class row — a method whose owner
+// row is absent renders ungrouped in slot order. A data string sharing a
+// class's name prefix (the accepted false positive already lives in the
+// definition block) would nest under it — harmless, requires same-name
+// coexistence in one program. During the class body (grilled Q3) no class
+// row exists yet, so the methods show ungrouped at the top — grouping
+// kicks in the moment the class row appears, and stays for the rest of
+// the run (incl. the synthetic final step, where sticky methods ride
+// above the class's globals row). Multiple classes (grilled Q5): each
+// group rides directly under its owner, owners in their own slot order.
+// `sub` collects the method names for the indented sub-row rendering.
+function looksLikeClass(v) {
+  return typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]* \{/.test(v);
+}
+
+function groupMethods(names, valueOf, ownerCand, sub) {
+  const isClass = (k) => looksLikeClass(valueOf(k));
+  const owner = new Map();
+  for (const k of names) {
+    const cls = ownerCand.get(k);
+    if (cls && cls !== k && names.includes(cls) && isClass(cls)) owner.set(k, cls);
+  }
+  if (!owner.size) return names;
+  const out = [];
+  for (const k of names) {
+    if (owner.has(k)) continue;   // methods emit only under their class
+    out.push(k);
+    if (isClass(k)) {
+      for (const m of names) {
+        if (owner.get(m) === k) { out.push(m); sub.add(m); }
+      }
+    }
+  }
+  return out;
 }
 
 // Shape checks on the runner's formatted values (runner.py
