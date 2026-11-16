@@ -26,7 +26,6 @@ export function renderVars() {
   const rendered = new Map();   // oid → label of its canonical box
   const path = [];              // oids currently being drawn (cycle detection)
   const sub = new Set();        // method rows nested under their class row
-  const curLine = state.steps[state.idx].line || 0;   // for the loop-var relabel
   const rows = groupMethods(names, valueOf, ownerCand, sub).map((k) => {
     const live = hasOwn(vars, k);
     const value = valueOf(k);
@@ -35,10 +34,9 @@ export function renderVars() {
     const m = live ? mem : (lastMem.get(k) || null);
     const text = escapeHtml(fmtValue(value));
     const tr = sub.has(k) ? '<tr class="sub">' : '<tr>';
-    // Only LIVE bindings get the loop-variable relabel: a scope-ended
-    // container's line is outside every loop body anyway, and its label
-    // must not flip with whatever the module level is doing now.
-    return `${tr}<td class="k">${escapeHtml(k)}</td><td class="v">${memCell(k, value, m, text, rendered, path, live ? loopVarFor(k, curLine) : null)}</td></tr>`;
+    // The loop-variable label is static (code-derived, see loopVarFor), so
+    // every row — live or persisted — gets the same constant label.
+    return `${tr}<td class="k">${escapeHtml(k)}</td><td class="v">${memCell(k, value, m, text, rendered, path, loopVarFor(k))}</td></tr>`;
   }).join('');
   els.vars.innerHTML = `<table>${rows}</table>`;
 }
@@ -154,54 +152,43 @@ function memGrid(label, items, extra) {
     + '</span>';
 }
 
-// Loop-variable relabel (2026-11-16, grilled Q1–Q6): while execution is
-// inside the body of `for n in numbers`, the `numbers` grid's name row
-// reads `n` — the element being accessed — and reverts to `numbers` before
-// the loop starts, after it ends, and on the for-line step itself (grilled
-// Q1: n is unbound there). Detection is panel-side and dynamic: a one-time
-// scan of the editor text (safe to read at render time — any edit resets
-// the trace) collects BLOCK bodies of bare-name loops
-// (`for <target> in <name>:`); at render time the current step's line picks
-// the innermost (deepest-indented) loop whose body contains it (grilled
-// Q5: nested → innermost, sequential → whoever owns the line). Slices,
-// calls, tuple targets, and inline one-liner bodies never qualify (grilled
-// Q4: bare-name iterables only), so those grids keep their own name.
+// Loop-variable relabel (2026-11-16, constant-label round): a list that a
+// `for` loop iterates anywhere in the code is labelled with that loop's
+// variable at EVERY step — from the grid's first appearance to the last
+// step of the trace. Earlier rounds keyed the label on execution state
+// (the current line, then line + binding), but the user's report (steps
+// 24–26 flipping back to the list name after the loop) showed that any
+// execution-derived label necessarily changes across the run: stability
+// is the requirement, so the label is STATIC code-derived instead. A
+// one-time scan of the editor text (safe to read at render time — any
+// edit resets the trace) collects bare-name loops (`for <target> in
+// <name>:` — block or inline body; slices `nums[1:]`, calls and tuple
+// targets `i, v` never qualify), and the FIRST loop over a given list
+// wins for the whole run (a later loop over the same list does not take
+// over). Trade-off, chosen on purpose: the label shows the loop variable
+// even before the loop starts and after it ends, and under nesting the
+// outer list reads the outer variable — constant beats per-step accurate.
 // Canonical bookkeeping is untouched: aliasing arrows still cite the
-// variable name, and the loop variable's own scalar row still shows beside
-// the grid (grilled Q3: keep both).
+// variable name, and the loop variable's own scalar row still shows
+// beside the grid.
 
 let loopScanText = null;
-let loopScan = [];   // { target, iter, start, end, indent } — 1-based body range
+let loopScan = new Map();   // iterable name → FIRST qualifying loop's target
 
 function parseForLoops(code) {
-  if (code === loopScanText) return loopScan;
+  if (code === loopScanText) return;
   loopScanText = code;
-  loopScan = [];
-  const lines = code.split('\n');
-  const FOR_RE = /^([ \t]*)for\s+([A-Za-z_]\w*)\s+in\s+([A-Za-z_]\w*)\s*:(?:[ \t]*(?:#.*)?)?$/;
-  for (let i = 0; i < lines.length; i++) {
-    const m = FOR_RE.exec(lines[i]);
-    if (!m) continue;
-    const indent = m[1].length;
-    let end = i;   // last body line (0-based); blank/comment lines don't bound it
-    for (let j = i + 1; j < lines.length; j++) {
-      if (!lines[j].trim() || /^[ \t]*#/.test(lines[j])) continue;
-      if ((lines[j].match(/^[ \t]*/))[0].length > indent) end = j;
-      else break;
-    }
-    if (end > i) loopScan.push({ target: m[2], iter: m[3], start: i + 2, end: end + 1, indent });
+  loopScan = new Map();
+  const FOR_RE = /^[ \t]*for\s+([A-Za-z_]\w*)\s+in\s+([A-Za-z_]\w*)\s*:/;
+  for (const line of code.split('\n')) {
+    const m = FOR_RE.exec(line);
+    if (m && !loopScan.has(m[2])) loopScan.set(m[2], m[1]);   // first loop wins
   }
-  return loopScan;
 }
 
-function loopVarFor(name, line) {
-  if (!line) return null;
-  let best = null;
-  for (const L of parseForLoops(els.textarea.value)) {
-    if (L.iter !== name || line < L.start || line > L.end) continue;
-    if (!best || L.indent > best.indent) best = L;
-  }
-  return best ? best.target : null;
+function loopVarFor(name) {
+  parseForLoops(els.textarea.value);
+  return loopScan.get(name) || null;
 }
 
 // One element slot: key:value for dicts/instances, indexed for sequences,
