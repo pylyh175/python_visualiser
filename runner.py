@@ -16,6 +16,10 @@ MAX_STR = 500             # max chars kept for any string value
 MAX_ITEMS = 100           # max elements kept per container
 MAX_VARS = 60             # max variables kept per snapshot
 VIZ_FILENAME = "<visualiser_code>"
+# Set by __viz_run: __qualname__ -> FunctionDef for every function declared
+# in the run's source (see __viz_source_fn_map). Read by __viz_signature;
+# None (or a lookup miss) means "not declared in the run's source".
+_VIZ_SOURCE_FNS = None
 
 try:
     # Pyodide host: the browser's own clock is the one honest wall-time source
@@ -31,23 +35,154 @@ except ImportError:
     _VIZ_CLOCK = time.monotonic
 
 
-def __viz_signature(fn):
-    """Signature string for a function/method, with annotations kept as
-    written (eval_str=False). Under PEP 649 (Python 3.14) annotations are
-    lazy and may reference names undefined at runtime (e.g. a missing
-    `from typing import List`) — evaluating them on introspection would
-    raise, so they must be rendered without evaluation. Returns None when
-    no signature can be built at all."""
+def _viz_unparse_ann(ann):
+    """Annotation AST -> text exactly as the user wrote it. A stringized
+    annotation (`from __future__ import annotations`) holds the text as a
+    Constant string, so `x: Undefined` renders `Undefined` (as written), not
+    `'Undefined'` — string literals the user wrote explicitly collapse the
+    same way, which is harmless in this position."""
+    if isinstance(ann, ast.Constant) and isinstance(ann.value, str):
+        return ann.value
     try:
-        return str(inspect.signature(fn, eval_str=False))
+        return ast.unparse(ann)
+    except Exception:
+        return ""
+
+
+def __viz_sig_from_ast(fdef, drop_first=False):
+    """Render "(params) -> ret" from a FunctionDef, annotations and defaults
+    exactly as written — syntactic only, never evaluated (PEP 649 safe).
+    drop_first=True strips a leading literal `self`/`cls` parameter (used by
+    the class-blueprint branch, grilled Q3)."""
+    a = fdef.args
+    parts = []
+
+    def param_text(x):
+        t = x.arg
+        if x.annotation is not None:
+            t = t + ": " + _viz_unparse_ann(x.annotation)
+        return t
+
+    def with_default(t, d):
+        # Match inspect's style: `b=2` when unannotated, `b: int = 3` when not.
+        sep = " = " if ":" in t else "="
+        return t + sep + ast.unparse(d)
+
+    pos = list(a.posonlyargs) + list(a.args)
+    d0 = len(pos) - len(a.defaults)
+    for i, x in enumerate(pos):
+        t = param_text(x)
+        if i >= d0:
+            t = with_default(t, a.defaults[i - d0])
+        parts.append(t)
+    if a.posonlyargs:
+        parts.insert(len(a.posonlyargs), "/")
+    if a.vararg is not None:
+        t = "*" + a.vararg.arg
+        if a.vararg.annotation is not None:
+            t = t + ": " + _viz_unparse_ann(a.vararg.annotation)
+        parts.append(t)
+    for i, x in enumerate(a.kwonlyargs):
+        t = param_text(x)
+        d = a.kw_defaults[i]
+        if d is not None:
+            t = with_default(t, d)
+        parts.append(t)
+    if a.kwarg is not None:
+        t = "**" + a.kwarg.arg
+        if a.kwarg.annotation is not None:
+            t = t + ": " + _viz_unparse_ann(a.kwarg.annotation)
+        parts.append(t)
+    if drop_first and parts:
+        head = parts[0].split(" = ")[0].split(":")[0].strip()
+        if head in ("self", "cls"):
+            parts = parts[1:]
+            if parts and parts[0] == "/":
+                parts = parts[1:]
+    s = "(" + ", ".join(parts) + ")"
+    if fdef.returns is not None:
+        s = s + " -> " + _viz_unparse_ann(fdef.returns)
+    return s
+
+
+def __viz_source_fn_map(source):
+    """__qualname__ -> FunctionDef for every function declared in the run's
+    source text (module-level, nested and class-prefixed). The executed code
+    is compiled from this same text, so qualnames match; closure scopes
+    contribute `<locals>` segments exactly as inspect does."""
+    try:
+        tree = ast.parse(source, filename=VIZ_FILENAME)
+    except Exception:
+        return {}
+    out = {}
+
+    def walk(node, prefix):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                qn = prefix + child.name
+                out[qn] = child
+                walk(child, qn + ".<locals>.")
+            elif isinstance(child, ast.ClassDef):
+                walk(child, prefix + child.name + ".")
+            else:
+                walk(child, prefix)
+
+    walk(tree, "")
+    return out
+
+
+def _viz_sig_drop_first(sig):
+    """Drop a leading literal `self`/`cls` parameter from a rendered
+    signature string — the class-blueprint variant of drop_first. Simple
+    textual handling for the inspect fallback (annotations may contain
+    commas, so split only at the param-list edges)."""
+    s = sig.strip()
+    if not s.startswith("("):
+        return sig
+    end = s.find(")")
+    if end <= 1:
+        return sig
+    head, tail = s[1:end], s[end:]
+    for kw in ("self", "cls"):
+        if head == kw:
+            return "()" + tail
+        if head.startswith(kw + ","):
+            h = head[len(kw) + 1:].strip()
+            if h.startswith("/"):
+                h = h[1:].strip()
+            if h.startswith(","):
+                h = h[1:].strip()
+            return "(" + h + tail
+    return sig
+
+
+def __viz_signature(fn, drop_first=False):
+    """Signature string for a function/method. Primary path: the run's own
+    source (AST parse — annotations rendered exactly as written, never
+    evaluated, so PEP 649 lazy annotations and unimported names cannot break
+    it; this is the fix for the `(?)` reproduced on Pyodide). Fallback for
+    functions not declared in the run's source (e.g. imported functions
+    assigned to a variable): inspect with eval_str=False. None when no
+    signature can be built at all. drop_first=True strips a leading literal
+    `self`/`cls` parameter (class-blueprint branch, grilled Q3)."""
+    q = getattr(fn, "__qualname__", None) or getattr(fn, "__name__", None)
+    fdef = (_VIZ_SOURCE_FNS or {}).get(q) if q else None
+    if fdef is not None:
+        try:
+            return __viz_sig_from_ast(fdef, drop_first=drop_first)
+        except Exception:
+            pass
+    try:
+        sig = str(inspect.signature(fn, eval_str=False))
     except TypeError:
         # very old Python without eval_str, or not introspectable — try plain
         try:
-            return str(inspect.signature(fn))
+            sig = str(inspect.signature(fn))
         except Exception:
             return None
     except Exception:
         return None
+    return _viz_sig_drop_first(sig) if drop_first else sig
 
 
 def __viz_make_safe(value, depth=0):
@@ -102,7 +237,7 @@ def __viz_make_safe(value, depth=0):
             if not isinstance(f, types.FunctionType):
                 continue
             try:
-                sig = __viz_signature(f)
+                sig = __viz_signature(f, drop_first=True)
                 parts.append(n + (sig if sig is not None else "(?)"))
             except Exception:
                 parts.append(n + "(?)")
@@ -238,6 +373,12 @@ def __viz_locals(frame, sticky, record=None):
 
 def __viz_run(code):
     """Execute user code with a line tracer, return JSON with every step."""
+    # Signatures are built from the run's own source (AST — annotations kept
+    # as written, never evaluated), so make that source visible to the
+    # signature builder before execution starts.
+    global _VIZ_SOURCE_FNS
+    _VIZ_SOURCE_FNS = __viz_source_fn_map(code)
+
     filename = VIZ_FILENAME
     steps = []
     out = io.StringIO()
