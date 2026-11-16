@@ -4,6 +4,31 @@ import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml, fmtValue } from '../utils.js';
 
+// Scroll positions of flat list grids, keyed "name:rootRef" (rootRef = the
+// mem node's stable ref). The panel re-renders from scratch on every step,
+// so before replacing innerHTML the current positions are stashed, and after
+// the fresh DOM exists they are restored (clamped to the new maximum). A
+// list re-bound to a DIFFERENT object ref never matches — its strip resets
+// to 0; the same list growing/shrinking keeps the position (clamped).
+const SCROLL_POS = new Map();
+function stashScroll() {
+  if (!els.vars || typeof els.vars.querySelectorAll !== 'function') return;
+  for (const el of els.vars.querySelectorAll('.mem-scroll')) {
+    const k = el.getAttribute && el.getAttribute('data-scrollkey');
+    if (k && typeof el.scrollLeft === 'number') SCROLL_POS.set(k, el.scrollLeft);
+  }
+}
+function restoreScroll() {
+  if (!els.vars || typeof els.vars.querySelectorAll !== 'function') return;
+  for (const el of els.vars.querySelectorAll('.mem-scroll')) {
+    const k = el.getAttribute && el.getAttribute('data-scrollkey');
+    const v = k ? SCROLL_POS.get(k) : undefined;
+    if (typeof v !== 'number') continue;
+    const max = Math.max(0, (el.scrollWidth || 0) - (el.clientWidth || 0));
+    el.scrollLeft = Math.min(v, max);
+  }
+}
+
 export function renderVars() {
   if (!state.steps.length) {
     els.vars.innerHTML = '<span class="empty">Run some code first.</span>';
@@ -38,7 +63,9 @@ export function renderVars() {
     // every row — live or persisted — gets the same constant label.
     return `${tr}<td class="k">${escapeHtml(k)}</td><td class="v">${memCell(k, value, m, text, rendered, path, loopVarFor(k))}</td></tr>`;
   }).join('');
+  stashScroll();
   els.vars.innerHTML = `<table>${rows}</table>`;
+  restoreScroll();
 }
 
 /* ═══════════════ Boxes-and-arrows memory diagram (2026-11-15, grilled Q1–Q9) ═══════════════
@@ -118,7 +145,8 @@ function memBox(oid, nodes, rendered, path, depth, owner, gridName) {
   if (depth === 1 && (node.t === 'list' || node.t === 'tuple')
     && (real.length || moreVal) && real.every(isMemScalar)) {
     path.pop();
-    return memGrid(gridName ?? label, real, moreVal);
+    const scrollKey = (typeof owner === 'string' && owner) ? `${owner}:${oid}` : null;
+    return memGrid(gridName ?? label, real, moreVal, scrollKey);
   }
   if (!real.length && !moreVal) {
     slots = '<span class="mem-slot mem-empty">(empty)</span>';
@@ -234,22 +262,31 @@ function memMatrix(label, rows, extra, nodes) {
 // row 2 is the owner name + the values — NO type chip (2026-11-16, grilled
 // Q1: the word "list" beside the name was noise). During a `for` loop over
 // the list, the name is replaced by the loop variable (see loopVarFor).
-// Same caps as the boxes (MEM_SHOW_ITEMS shown, then a `+N more` cell)
-// and the same cell formatting — values go through memValue, so strings
-// are quoted/truncated and None is None.
+// Same cell formatting as the boxes — values go through memValue, so
+// strings are quoted/truncated and None is None. Rendering is handled in
+// memGrid below: every emitted cell, nowrap, horizontally scrollable.
 // The extra cap column shows `…` on the index row and `… +N more` on the value row.
-function memGrid(label, items, extra) {
-  const shown = items.slice(0, MEM_SHOW_ITEMS);
-  const hidden = (items.length - shown.length) + extra;
-  const cols = shown.length + (hidden ? 1 : 0);
-  const idxCells = shown.map((_, i) => `<span class="mem-gcell mem-gidx">${i}</span>`).join('');
-  const valCells = shown.map((v) => `<span class="mem-gcell">${memValue(v, {}, new Map(), [], 1)}</span>`).join('');
+// Every emitted cell renders (the runner caps emission at 100 — see
+// MEM_MAX_ITEMS — so the strip is bounded); cells flow in a nowrap
+// inline-grid inside a horizontal-scroll wrapper, so indices stay glued to
+// values while scrolling. Only beyond the emission cap does a `… +N more`
+// cell appear (on the value row, with a `…` marker on the index row).
+// The wrapper carries data-scrollkey="name:ref" — the panel stashes its
+// scrollLeft across re-renders (see SCROLL_POS in renderVars).
+function memGrid(label, items, extra, scrollKey) {
+  const hidden = extra;
+  const idxCells = items.map((_, i) => `<span class="mem-gcell mem-gidx">${i}</span>`).join('');
+  const valCells = items.map((v) => `<span class="mem-gcell">${memValue(v, {}, new Map(), [], 1)}</span>`).join('');
   const idxMore = hidden ? '<span class="mem-gcell mem-gidx">…</span>' : '';
   const valMore = hidden ? `<span class="mem-gcell mem-gmore">… +${hidden} more</span>` : '';
-  return `<span class="mem-grid" style="grid-template-columns:auto repeat(${cols}, minmax(2.2em, 1fr))">`
+  const cols = items.length + (hidden ? 1 : 0);
+  const inner = `<span class="mem-grid" style="grid-template-columns:auto repeat(${cols}, minmax(2.2em, 1fr))">`
     + `<span class="mem-glabel mem-ghead">index</span>${idxCells}${idxMore}`
     + `<span class="mem-glabel mem-gname">${escapeHtml(label)}</span>${valCells}${valMore}`
     + '</span>';
+  return scrollKey
+    ? `<span class="mem-scroll" data-scrollkey="${escapeHtml(scrollKey)}">${inner}</span>`
+    : inner;
 }
 
 // Loop-variable relabel (2026-11-16, constant-label round): a list that a

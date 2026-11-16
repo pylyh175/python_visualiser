@@ -779,9 +779,9 @@ textarea[readonly] {
   font-family: var(--mono);
   font-size: 13px;
 }
-#varsBody table { width: 100%; border-collapse: collapse; }
+#varsBody table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 #varsBody td { padding: 3px 12px; vertical-align: top; }
-#varsBody td.k { color: var(--accent); white-space: nowrap; width: 1%; }
+#varsBody td.k { color: var(--accent); width: 26ch; overflow-wrap: anywhere; }
 #varsBody td.v { color: var(--text-body); word-break: break-all; white-space: pre-wrap; }
 #varsBody .empty { color: var(--muted); padding: 4px 12px; font-size: 13px; }
 #varsBody tr.sub td.k { padding-left: 30px; }
@@ -840,6 +840,19 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
   background: var(--panel);
   vertical-align: top;
 }
+/* Horizontal scroll for flat list grids (all emitted cells, nowrap): the
+   strip never widens the panel or its siblings — a scrollbar appears only
+   when the cells overflow the wrapper (2026-11-17, grilled Q1–Q8). */
+#varsBody .mem-scroll {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: top;
+  scrollbar-width: thin;
+}
+#varsBody .mem-scroll::-webkit-scrollbar { height: 6px; }
+#varsBody .mem-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 #varsBody .mem-glabel { align-self: center; padding: 1px 6px 1px 2px; white-space: nowrap; }
 #varsBody .mem-ghead { color: var(--muted); font-size: 11px; text-align: right; }
 #varsBody .mem-gname { color: var(--accent); font-weight: 600; }

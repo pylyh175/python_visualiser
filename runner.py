@@ -444,7 +444,7 @@ def __viz_run(code):
     # panel draws an arrow or, on a back-edge, a loop-back marker) or
     # {"more": n} (the +N more sentinel). Dict keys and instance
     # attribute names lead their slots; values follow.
-    MEM_MAX_ITEMS = 12   # per container; the panel shows 8 then "+N more"
+    MEM_MAX_ITEMS = 100  # per container; the flat grid is fully scrollable
     MEM_MAX_DEPTH = 4    # box levels; the panel renders 3 and shows "…" beyond
 
     def __viz_mem_classify(v):
