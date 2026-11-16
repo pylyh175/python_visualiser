@@ -803,6 +803,8 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 }
 #varsBody .mem-gidx { color: var(--muted); background: transparent; border-style: dashed; }
 #varsBody .mem-gmore { color: var(--muted); }
+/* Invisible filler that keeps ragged matrix rows aligned to the column count. */
+#varsBody .mem-gpad { border: none; background: transparent; min-width: 0; padding: 1px 0; }
 
 /* Two Pointers visualiser panel */
 #twoPtrsBody {

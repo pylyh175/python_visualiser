@@ -96,6 +96,16 @@ function memBox(oid, nodes, rendered, path, depth, owner, gridName) {
     && items[items.length - 1] !== null && 'more' in items[items.length - 1]
     ? items[items.length - 1].more : 0;
   const real = moreVal ? items.slice(0, -1) : items;
+  // With the 2D-arrays toggle ON, a list/tuple of flat scalar rows draws
+  // as a matrix (see the 2D matrix display comment above) — checked before
+  // the 1D grid, whose scalar rule these ref items could never satisfy
+  // anyway. Same canonical bookkeeping as every other branch: the label
+  // set above feeds the alias arrows, gridName is display-only.
+  if (depth === 1 && mem2dEnabled() && (node.t === 'list' || node.t === 'tuple')
+    && (real.length || moreVal) && isMatrixRows(real, nodes || {})) {
+    path.pop();
+    return memMatrix(gridName ?? label, real, moreVal, nodes || {});
+  }
   // list/tuple whose shown elements are all scalars renders as an
   // index-row × value-row grid instead of boxes — the user's example
   // (`numbers = [3, 1, 4, 1, 5]` → index 0 1 2 3 4 / numbers 3 1 4 1 5).
@@ -128,6 +138,96 @@ function memBox(oid, nodes, rendered, path, depth, owner, gridName) {
 // marker — either falls back to the boxes-and-arrows rendering.
 function isMemScalar(v) {
   return v !== '…' && (v === null || typeof v !== 'object');
+}
+
+// ═══ 2D matrix display ═══
+// With the "2D arrays" checkbox ON, a root-level list/tuple whose every
+// element is a flat list/tuple of scalars renders as a matrix instead of
+// nested boxes: the variable's name row on top, a column-index header
+// (0, 1, 2 …), and a row-index column. Detection is automatic (read at
+// render time — no per-variable configuration, no effect on execution:
+// flipping the checkbox only re-renders the current step). Qualification
+// is strict: mixed contents, three-deep nesting, refs inside rows and
+// all-empty rows silently keep the boxes-and-arrows rendering; a flat
+// scalar list keeps the 1D grid. The runner's per-container `+N more`
+// sentinel (a capped outer list or row) still qualifies — the sentinel
+// renders as the same `… +N more` cell the boxes show. Ragged rows are
+// allowed: shorter rows pad with invisible filler cells so the columns
+// stay aligned. Canonical bookkeeping is shared with the boxes (an
+// aliased copy still renders `──▶ label`), and the constant loop-variable
+// relabel applies to the name row exactly as it does for the 1D grid.
+
+function mem2dEnabled() {
+  return !!(els.vars2d && els.vars2d.checked);
+}
+
+// A matrix row cell: a scalar, or the runner's per-container truncation
+// sentinel (always last — the boxes view shows the same `… +N more`).
+function isMemRowCell(v) {
+  return isMemScalar(v)
+    || (v !== null && typeof v === 'object' && !Array.isArray(v) && 'more' in v);
+}
+
+// A row node: a list/tuple whose items are all matrix row cells.
+function isMatrixRow(node) {
+  if (!node || (node.t !== 'list' && node.t !== 'tuple') || !Array.isArray(node.items)) return false;
+  return node.items.every(isMemRowCell);
+}
+
+// items = the outer node's real items (row refs, possibly ending in the
+// runner's outer-cap sentinel). The matrix needs at least one non-empty
+// row (all-empty rows have nothing to index → boxes).
+function isMatrixRows(items, nodes) {
+  let nonEmpty = false;
+  const ok = items.every((it) => {
+    if (isMemRowCell(it) && !isMemScalar(it)) return true;   // outer-cap sentinel
+    if (!it || typeof it !== 'object' || Array.isArray(it) || !('ref' in it)) return false;
+    const row = nodes[String(it.ref)];
+    if (!isMatrixRow(row)) return false;
+    if ((row.items || []).some(isMemScalar)) nonEmpty = true;
+    return true;
+  });
+  return ok && nonEmpty;
+}
+
+// Same caps and cell formatting as the 1D grid and the boxes: 8 rows and
+// 8 columns shown (MEM_SHOW_ITEMS), then a `… +N more` sentinel cell for
+// cut-off rows (bottom) and columns (right); values go through memValue.
+// Invisible `mem-gpad` fillers keep every row aligned to the column count.
+function memMatrix(label, rows, extra, nodes) {
+  const shown = rows.slice(0, MEM_SHOW_ITEMS);
+  const hiddenRows = (rows.length - shown.length) + extra;
+  const parsed = shown.map((r) => {
+    const node = nodes[String(r.ref)];
+    const its = (node && node.items) || [];
+    const more = its.length && typeof its[its.length - 1] === 'object'
+      && its[its.length - 1] !== null && 'more' in its[its.length - 1]
+      ? its[its.length - 1].more : 0;
+    return { cells: more ? its.slice(0, -1) : its, more };
+  });
+  const cols = parsed.reduce((mx, p) => Math.max(mx, Math.min(p.cells.length, MEM_SHOW_ITEMS)), 0);
+  const colMore = parsed.some((p) => p.more || p.cells.length > MEM_SHOW_ITEMS);
+  const total = cols + (colMore ? 1 : 0);
+  const pad = (n) => '<span class="mem-gpad"></span>'.repeat(Math.max(0, n));
+  let out = `<span class="mem-grid" style="grid-template-columns:auto repeat(${total}, minmax(2.2em, 1fr))">`;
+  // Row 1: the variable's name (loop-variable relabel applies), padded to
+  // the full width; row 2: a blank corner cell + the column indices.
+  out += `<span class="mem-glabel mem-gname">${escapeHtml(label)}</span>${pad(total)}`;
+  out += `<span class="mem-glabel"></span>`;
+  for (let c = 0; c < cols; c++) out += `<span class="mem-gcell mem-gidx">${c}</span>`;
+  if (colMore) out += '<span class="mem-gcell mem-gidx">…</span>';
+  parsed.forEach((p, i) => {
+    const shownCells = p.cells.slice(0, MEM_SHOW_ITEMS);
+    const hidden = (p.cells.length - shownCells.length) + p.more;
+    out += `<span class="mem-gcell mem-gidx">${i}</span>`;
+    out += shownCells.map((v) => `<span class="mem-gcell">${memValue(v, {}, new Map(), [], 1)}</span>`).join('');
+    if (hidden) out += `<span class="mem-gcell mem-gmore">… +${hidden} more</span>`;
+    out += pad(total - shownCells.length - (hidden ? 1 : 0));
+  });
+  if (hiddenRows) {
+    out += `<span class="mem-gcell mem-gidx">…</span><span class="mem-gcell mem-gmore">… +${hiddenRows} more</span>${pad(total - 1)}`;
+  }
+  return out + '</span>';
 }
 
 // row 1 is the literal `index` label (muted) + the positions; 

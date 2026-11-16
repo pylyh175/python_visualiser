@@ -24,6 +24,7 @@ export const els = {
   stepLabel: document.getElementById('stepLabel'),
   output: document.getElementById('outputBody'),
   vars: document.getElementById('varsBody'),
+  vars2d: document.getElementById('vars2d'),
   varsPanel: document.getElementById('varsPanel'),
   outTitle: document.getElementById('outTitle'),
   outTabs: document.getElementById('outTabs'),
