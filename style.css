@@ -779,10 +779,16 @@ textarea[readonly] {
   font-family: var(--mono);
   font-size: 13px;
 }
-#varsBody table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+#varsBody table { width: 100%; display: grid; grid-template-columns: max-content minmax(0, 1fr); }
+/* Every row's cells flow into ONE shared grid (2026-11-17, grilled Q1–Q3):
+   column 1 fits the widest name, so all values align at one x; column 2 can
+   shrink without bound (minmax(0,1fr)), so long nowrap value strips scroll
+   INSIDE the cell instead of widening the panel. Recomputed per render —
+   same behaviour as the pre-30cd482 auto table. */
+#varsBody tbody, #varsBody tr { display: contents; }
 #varsBody td { padding: 3px 12px; vertical-align: top; }
-#varsBody td.k { color: var(--accent); width: 26ch; overflow-wrap: anywhere; }
-#varsBody td.v { color: var(--text-body); word-break: break-all; white-space: pre-wrap; }
+#varsBody td.k { color: var(--accent); white-space: nowrap; }
+#varsBody td.v { color: var(--text-body); word-break: break-all; white-space: pre-wrap; min-width: 0; }
 #varsBody .empty { color: var(--muted); padding: 4px 12px; font-size: 13px; }
 #varsBody tr.sub td.k { padding-left: 30px; }
 
