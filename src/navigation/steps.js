@@ -185,21 +185,6 @@ els.last.addEventListener('click', () => { pausePlayback(); setIdx(state.steps.l
 // navigation; render() keeps the thumb in sync when idx moves by other means.
 els.slider.addEventListener('input', () => { pausePlayback(); setIdx(Number(els.slider.value)); });
 
-/* ---------- 2D-arrays display toggle (2026-11-16, grilled Q1–Q7) ---------- */
-
-// Purely display-side: flipping the checkbox re-renders the CURRENT step
-// (setIdx of the same idx — no re-run, no trace change; safe mid-playback).
-// The preference persists in localStorage (same try/catch discipline as
-// theme.js — storage-blocked sessions just lose the persistence).
-const VARS2D_KEY = 'viz2d';
-if (els.vars2d) {
-  try { els.vars2d.checked = localStorage.getItem(VARS2D_KEY) === '1'; } catch (err) { /* storage unavailable: session-only */ }
-  els.vars2d.addEventListener('change', () => {
-    try { localStorage.setItem(VARS2D_KEY, els.vars2d.checked ? '1' : '0'); } catch (err) { /* ignore */ }
-    setIdx(state.idx);
-  });
-}
-
 document.addEventListener('keydown', (e) => {
   // The slider handles ←/→ natively when focused (its input event steps);
   // skip it here so one keypress never steps twice.

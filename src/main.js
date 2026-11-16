@@ -18,6 +18,7 @@ import { initSplitter } from './splitters/horizontal.js';
 import { initVarsSplitter } from './splitters/vertical.js';
 import { initContainerResize } from './panels/container.js';
 import { buildDsaMenu } from './dsa.js';
+import { initDisplayOptions } from './panels/displayOptions.js';
 
 render();
 init();
@@ -25,4 +26,5 @@ initSplitter();
 initVarsSplitter();
 initTwoPointersTab();
 buildDsaMenu();
+initDisplayOptions();
 initContainerResize();

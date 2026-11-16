@@ -720,6 +720,57 @@ textarea[readonly] {
   flex-shrink: 0;
   height: calc(50% - 13px);
 }
+
+/* Display-options dropdown (2026-11-16, grilled Q1–Q6): the header row keeps
+   the Variables title and the "Display ▾" trigger on one line — the panel's
+   border moves to the row (the generic .panel h2 border is dropped here) and
+   the checkbox menu hangs below the trigger, right-aligned. Rows come from
+   the displayOptions registry (label + checkbox pairs); new options are one
+   registry entry, no CSS changes. */
+.vars-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.vars-head h2 { border-bottom: none; flex-shrink: 0; }
+.vars-display { position: relative; margin-right: 6px; }
+#varsDisplayBtn {
+  font: 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#varsDisplayBtn:hover, #varsDisplayBtn:focus { outline: none; border-color: var(--accent); }
+.vars-display-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 220px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 4px 0;
+}
+.vars-display-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font: 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.vars-display-row:hover { background: var(--bg); }
+.vars-display-row input { margin: 0; cursor: pointer; }
+
 #varsBody {
   flex: 1;         /* fill the panel's (now fixed 50/50) height… */
   min-height: 0;   /* …and scroll instead of pushing past its clip */
