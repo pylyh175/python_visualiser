@@ -26,6 +26,7 @@ export function renderVars() {
   const rendered = new Map();   // oid → label of its canonical box
   const path = [];              // oids currently being drawn (cycle detection)
   const sub = new Set();        // method rows nested under their class row
+  const curLine = state.steps[state.idx].line || 0;   // for the loop-var relabel
   const rows = groupMethods(names, valueOf, ownerCand, sub).map((k) => {
     const live = hasOwn(vars, k);
     const value = valueOf(k);
@@ -34,7 +35,10 @@ export function renderVars() {
     const m = live ? mem : (lastMem.get(k) || null);
     const text = escapeHtml(fmtValue(value));
     const tr = sub.has(k) ? '<tr class="sub">' : '<tr>';
-    return `${tr}<td class="k">${escapeHtml(k)}</td><td class="v">${memCell(k, value, m, text, rendered, path)}</td></tr>`;
+    // Only LIVE bindings get the loop-variable relabel: a scope-ended
+    // container's line is outside every loop body anyway, and its label
+    // must not flip with whatever the module level is doing now.
+    return `${tr}<td class="k">${escapeHtml(k)}</td><td class="v">${memCell(k, value, m, text, rendered, path, live ? loopVarFor(k, curLine) : null)}</td></tr>`;
   }).join('');
   els.vars.innerHTML = `<table>${rows}</table>`;
 }
@@ -61,14 +65,14 @@ const MEM_TRUNC = 24;       // grilled Q9: element text truncation inside a box
 // rendered/path are shared across the whole render (see renderVars): the
 // FIRST row to show an oid draws its canonical box; a later root of the
 // SAME object renders the alias arrow instead of a duplicate box.
-function memCell(k, value, mem, text, rendered, path) {
+function memCell(k, value, mem, text, rendered, path, gridName) {
   const root = mem && mem.roots && hasOwnKey(mem.roots, k) ? mem.roots[k] : null;
   if (!root || typeof root !== 'object' || !('ref' in root)) return text;
   const oid = String(root.ref);
   if (rendered.has(oid)) {
     return `<span class="mem-wrap" title="${attrEsc(text)}"><span class="mem-ref">──▶ ${escapeHtml(rendered.get(oid))}</span></span>`;
   }
-  const box = memBox(root.ref, mem.nodes || {}, rendered, path, 1, k);
+  const box = memBox(root.ref, mem.nodes || {}, rendered, path, 1, k, gridName);
   return box ? `<span class="mem-wrap" title="${attrEsc(text)}">${box}</span>` : text;
 }
 
@@ -81,7 +85,7 @@ function attrEsc(s) { return escapeHtml(String(s)).replace(/"/g, '&quot;'); }
 // anonymous nested box) + one slot per element. Dict keys and instance
 // attribute names lead their slots; shared children become arrows; deep
 // children become ….
-function memBox(oid, nodes, rendered, path, depth, owner) {
+function memBox(oid, nodes, rendered, path, depth, owner, gridName) {
   const node = nodes[oid];
   if (!node || typeof node !== 'object') return null;
   const label = owner ?? (node.t === 'inst' ? `${node.cls} #${oid}` : `${node.t} #${oid}`);
@@ -101,11 +105,12 @@ function memBox(oid, nodes, rendered, path, depth, owner) {
   // depth marker) keep the boxes-and-arrows rendering, and deeper levels
   // never grid (a nested flat list draws as a nested box). The canonical
   // label bookkeeping above is shared with the boxes, so aliasing
-  // (`──▶ a`) works unchanged against a grid.
+  // (`──▶ a`) works unchanged against a grid — the loop-variable relabel
+  // (gridName) is DISPLAY-ONLY and never feeds the alias labels.
   if (depth === 1 && (node.t === 'list' || node.t === 'tuple')
     && (real.length || moreVal) && real.every(isMemScalar)) {
     path.pop();
-    return memGrid(label, kind, real, moreVal);
+    return memGrid(gridName ?? label, real, moreVal);
   }
   if (!real.length && !moreVal) {
     slots = '<span class="mem-slot mem-empty">(empty)</span>';
@@ -128,12 +133,14 @@ function isMemScalar(v) {
 }
 
 // row 1 is the literal `index` label (muted) + the positions; 
-// row 2 is the owner name (+ the muted type chip) + the values.
+// row 2 is the owner name + the values — NO type chip (2026-11-16, grilled
+// Q1: the word "list" beside the name was noise). During a `for` loop over
+// the list, the name is replaced by the loop variable (see loopVarFor).
 // Same caps as the boxes (MEM_SHOW_ITEMS shown, then a `+N more` cell)
 // and the same cell formatting — values go through memValue, so strings
 // are quoted/truncated and None is None.
 // The extra cap column shows `…` on the index row and `… +N more` on the value row.
-function memGrid(label, kind, items, extra) {
+function memGrid(label, items, extra) {
   const shown = items.slice(0, MEM_SHOW_ITEMS);
   const hidden = (items.length - shown.length) + extra;
   const cols = shown.length + (hidden ? 1 : 0);
@@ -143,8 +150,58 @@ function memGrid(label, kind, items, extra) {
   const valMore = hidden ? `<span class="mem-gcell mem-gmore">… +${hidden} more</span>` : '';
   return `<span class="mem-grid" style="grid-template-columns:auto repeat(${cols}, minmax(2.2em, 1fr))">`
     + `<span class="mem-glabel mem-ghead">index</span>${idxCells}${idxMore}`
-    + `<span class="mem-glabel mem-gname">${escapeHtml(label)} <i>${escapeHtml(kind)}</i></span>${valCells}${valMore}`
+    + `<span class="mem-glabel mem-gname">${escapeHtml(label)}</span>${valCells}${valMore}`
     + '</span>';
+}
+
+// Loop-variable relabel (2026-11-16, grilled Q1–Q6): while execution is
+// inside the body of `for n in numbers`, the `numbers` grid's name row
+// reads `n` — the element being accessed — and reverts to `numbers` before
+// the loop starts, after it ends, and on the for-line step itself (grilled
+// Q1: n is unbound there). Detection is panel-side and dynamic: a one-time
+// scan of the editor text (safe to read at render time — any edit resets
+// the trace) collects BLOCK bodies of bare-name loops
+// (`for <target> in <name>:`); at render time the current step's line picks
+// the innermost (deepest-indented) loop whose body contains it (grilled
+// Q5: nested → innermost, sequential → whoever owns the line). Slices,
+// calls, tuple targets, and inline one-liner bodies never qualify (grilled
+// Q4: bare-name iterables only), so those grids keep their own name.
+// Canonical bookkeeping is untouched: aliasing arrows still cite the
+// variable name, and the loop variable's own scalar row still shows beside
+// the grid (grilled Q3: keep both).
+
+let loopScanText = null;
+let loopScan = [];   // { target, iter, start, end, indent } — 1-based body range
+
+function parseForLoops(code) {
+  if (code === loopScanText) return loopScan;
+  loopScanText = code;
+  loopScan = [];
+  const lines = code.split('\n');
+  const FOR_RE = /^([ \t]*)for\s+([A-Za-z_]\w*)\s+in\s+([A-Za-z_]\w*)\s*:(?:[ \t]*(?:#.*)?)?$/;
+  for (let i = 0; i < lines.length; i++) {
+    const m = FOR_RE.exec(lines[i]);
+    if (!m) continue;
+    const indent = m[1].length;
+    let end = i;   // last body line (0-based); blank/comment lines don't bound it
+    for (let j = i + 1; j < lines.length; j++) {
+      if (!lines[j].trim() || /^[ \t]*#/.test(lines[j])) continue;
+      if ((lines[j].match(/^[ \t]*/))[0].length > indent) end = j;
+      else break;
+    }
+    if (end > i) loopScan.push({ target: m[2], iter: m[3], start: i + 2, end: end + 1, indent });
+  }
+  return loopScan;
+}
+
+function loopVarFor(name, line) {
+  if (!line) return null;
+  let best = null;
+  for (const L of parseForLoops(els.textarea.value)) {
+    if (L.iter !== name || line < L.start || line > L.end) continue;
+    if (!best || L.indent > best.indent) best = L;
+  }
+  return best ? best.target : null;
 }
 
 // One element slot: key:value for dicts/instances, indexed for sequences,

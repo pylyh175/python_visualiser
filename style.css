@@ -792,7 +792,6 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 #varsBody .mem-glabel { align-self: center; padding: 1px 6px 1px 2px; white-space: nowrap; }
 #varsBody .mem-ghead { color: var(--muted); font-size: 11px; text-align: right; }
 #varsBody .mem-gname { color: var(--accent); font-weight: 600; }
-#varsBody .mem-gname i { font-style: normal; font-weight: 400; color: var(--muted); font-size: 11px; }
 #varsBody .mem-gcell {
   min-width: 1.6em;
   padding: 1px 6px;
