@@ -159,7 +159,14 @@ function renderTwoPointersPanelContent(detection, frameStep = state.idx, frozen 
 
   const len = arr.length;
   const visLen = Math.min(len, TWOPTR_VIS_CAP);
-  const startIdx = Math.max(0, Math.min(leftIdx, rightIdx) - 2);
+  // Arrays that fit the cap render WHOLE from index 0 (2026-11-17 bugfix:
+  // anchoring at min(left, right) - 2 was for converging two-sum pointers;
+  // with a slow writer (removeDuplicates' i) it slid the window forward and
+  // silently dropped the array head). The pointer-anchored window only
+  // applies when the array exceeds the cap and cropping is unavoidable.
+  const startIdx = len <= TWOPTR_VIS_CAP
+    ? 0
+    : Math.max(0, Math.min(leftIdx, rightIdx) - 2);
   const endIdx = Math.min(len, startIdx + TWOPTR_VIS_CAP);
 
   // Build array strip HTML
