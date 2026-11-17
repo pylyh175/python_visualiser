@@ -30,6 +30,23 @@ export const DSA_DEFAULT_CODE = {
     '',
     'print(fib(6))',
   ].join('\n'),
+  // remove-duplicate default code.
+  'two-pointers.remove-duplicate': [
+    'def removeDuplicates(nums: List[int]) -> int:',
+    '    i = 1',
+    '',
+    '    for j in range(1, len(nums)):',
+    '        if nums[j] != nums[i - 1]:',
+    '            nums[i] = nums[j]',
+    '            i += 1',
+    '',
+    '    return i',
+    '',
+    '',
+    "nums = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4]",
+    'k = removeDuplicates(nums)',
+    'print("k =", k, "nums[:k] =", nums[:k])',
+  ].join('\n'),
 };
 
 // Hint text shown while the editor is unlocked.
