@@ -46,6 +46,28 @@ export const DSA_DEFAULT_CODE = {
     'k = removeDuplicates(nums)',
     'print("k =", k, "nums[:k] =", nums[:k])',
   ].join('\n'),
+  // 2026-11-17: user's twoSum as written (the __main__ guard runs — the
+  // runner seeds __name__ = '__main__' in the exec globals). Converging
+  // left/right pointers are the classic shape the panel was built for.
+  'two-pointers.two-sum': [
+    'def twoSum(num: List[int], target: int) -> List[int]:',
+    '    left = 0',
+    '    right = len(num) - 1',
+    '',
+    '    while left < right:',
+    '        if num[left] + num[right] == target:',
+    '            return [left, right]',
+    '        elif num[left] + num[right] < target:',
+    '            left += 1',
+    '        else:',
+    '            right -= 1',
+    '',
+    '    return []',
+    '',
+    'if __name__ == "__main__":',
+    '    lst = [2, 3, 5, 7, 9, 11]',
+    '    print(twoSum(lst, 12))',
+  ].join('\n'),
 };
 
 // Hint text shown while the editor is unlocked.
