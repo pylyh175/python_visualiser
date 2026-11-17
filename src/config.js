@@ -42,7 +42,6 @@ export const DSA_DEFAULT_CODE = {
     '',
     '    return i',
     '',
-    '',
     "nums = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4]",
     'k = removeDuplicates(nums)',
     'print("k =", k, "nums[:k] =", nums[:k])',
