@@ -68,6 +68,25 @@ export const DSA_DEFAULT_CODE = {
     '    lst = [2, 3, 5, 7, 9, 11]',
     '    print(twoSum(lst, 12))',
   ].join('\n'),
+  // 2026-11-19: user's reverse_arr as written (the __main__ guard runs — the
+  // runner seeds __name__ = '__main__' in the exec globals). Swapping ends
+  // inwards is the canonical two-pointers shape.
+  'two-pointers.reverse-array-string': [
+    'def reverse_arr(arr: List[int]):',
+    '    left = 0',
+    '    right = len(arr) - 1',
+    '    while left < right:',
+    '        arr[left], arr[right] = arr[right], arr[left]',
+    '        left += 1',
+    '        right -= 1',
+    '',
+    '    return arr',
+    '',
+    'if __name__ == "__main__":',
+    '    num = [1,2,3,4,5]',
+    '    reverse_arr(num)',
+    '    print(num)',
+  ].join('\n'),
 };
 
 // Hint text shown while the editor is unlocked.
