@@ -16,6 +16,11 @@
   --gutter: #9ca3af;      /* editor line numbers (former .mirror .ln literal) */
   --text-body: #374151;   /* vars-panel values (former #varsBody td.v literal) */
   --mono: Consolas, "SF Mono", Menlo, monospace;
+  /* Themed vertical scrollbars (2026-11-19, grilled Q1–Q5): rest = gutter,
+     hover/drag = accent; the 10px trough holds a 6px pill after the inset. */
+  --sb-size: 10px;
+  --sb-thumb: var(--gutter);
+  --sb-thumb-hover: var(--accent);
 }
 :root[data-theme="dark"] {
   /* Chrome-only override (2026-11-05-dark-mode-design.md Q1): the dark
@@ -856,6 +861,10 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
   overflow-y: hidden;
   vertical-align: top;
   scrollbar-width: thin;
+  /* The standard scrollbar properties inherit, so reset the colour here:
+     otherwise the themed #varsBody skin tints this strip. `auto` keeps its
+     pre-existing native paint (the strip was already UA-coloured). */
+  scrollbar-color: auto;
 }
 #varsBody .mem-scroll::-webkit-scrollbar { height: 6px; }
 #varsBody .mem-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -875,6 +884,53 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 #varsBody .mem-gmore { color: var(--muted); }
 /* Invisible filler that keeps ragged matrix rows aligned to the column count. */
 #varsBody .mem-gpad { border: none; background: transparent; min-width: 0; padding: 1px 0; }
+
+/* ── Themed scrollbars: code editor + Variables box (2026-11-19, grilled Q1–Q5) ──
+   The rest colour is the theme gutter, hover/drag is the theme accent, and both
+   resolve through the tokens above, so light and dark need no separate rules.
+   Firefox takes the coarse standard properties (thin width, matched colours,
+   square thumb). They sit behind a support query on purpose: in Chromium those
+   properties disable the custom pseudo-element skin (verified headed — the
+   standard thin width beside a 20px WebKit rule renders the native 10px bar).
+   Chromium also ignores per-axis selectors, so the WebKit skin covers both axes
+   of these two containers: a 10px trough with a transparent track and a 6px
+   floating pill after the 2px inset. The 28px minimum keeps the thumb grabbable
+   in very long files. */
+@supports not selector(::-webkit-scrollbar) {
+  #codeInput,
+  #varsBody {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sb-thumb) transparent;
+  }
+}
+#codeInput::-webkit-scrollbar,
+#varsBody::-webkit-scrollbar {
+  width: var(--sb-size);
+  height: var(--sb-size);
+}
+#codeInput::-webkit-scrollbar-track,
+#varsBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+#codeInput::-webkit-scrollbar-thumb,
+#varsBody::-webkit-scrollbar-thumb {
+  min-height: 28px;
+  min-width: 28px;
+  background-color: var(--sb-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+#codeInput::-webkit-scrollbar-thumb:hover,
+#varsBody::-webkit-scrollbar-thumb:hover,
+#codeInput::-webkit-scrollbar-thumb:active,
+#varsBody::-webkit-scrollbar-thumb:active {
+  background-color: var(--sb-thumb-hover);
+}
+#codeInput::-webkit-scrollbar-corner,
+#varsBody::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 /* Two Pointers visualiser panel */
 #twoPtrsBody {
