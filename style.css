@@ -727,9 +727,9 @@ textarea[readonly] {
   to { opacity: 0; transform: scale(0.85) translateY(-8px); }
 }
 
-/* Default vertical split (2026-11-09 redesign, grilled Q3): fixed 50/50 of
+/* Default vertical split (2026-11-20): 40/60 Variables/Output of
    the right column — column chrome = gap 12 + #vdivider 2 + gap 12 = 26px,
-   split evenly: Variables gets 50% - 13px, Output's flex:1 fills the rest.
+   Variables gets 40% - 13px, Output's flex:1 fills the rest (60% + 13px).
    Plain height, NOT flex-basis: a flex-basis would outrank the JS drag's
    inline height override (browser probe caught exactly that — drag applied
    474px while the panel sat frozen at its half-height), and dblclick clears
@@ -737,7 +737,7 @@ textarea[readonly] {
 #varsPanel {
   flex-grow: 0;
   flex-shrink: 0;
-  height: calc(50% - 13px);
+  height: calc(40% - 13px);
 }
 
 /* Display-options dropdown (2026-11-16, grilled Q1–Q6): the header row keeps
