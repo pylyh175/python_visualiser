@@ -80,6 +80,27 @@ header h1 { font-size: 18px; margin: 0; font-weight: 600; }
   line-height: 1;
 }
 
+/* Theme transition (2026-11-20): the dark-mode ripple is driven by the
+   View Transition API. The root cross-fade is disabled so the INCOMING theme
+   is revealed by a clip-path circle expanding from the toggle button
+   (animated in src/theme.js). Unlike the old solid overlay, the circle reveals
+   the real re-styled content, so text/code/panels are never covered — they
+   change theme exactly as the ripple passes over them. Chromium/Edge only;
+   other browsers get an instant swap (see theme.js). */
+/* The snapshot layers are display-only: Chrome paints them in the top layer
+   for the duration of the transition, so pointer hit-testing rests on the
+   snapshot (not the live DOM) until the 600 ms spread ends. The page's content
+   itself is never hidden — this only affects interaction, which you accepted
+   as the trade-off of the snapshot-based reveal. */
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;          /* kill the default cross-fade */
+  mix-blend-mode: normal;   /* no blend flash between the two snapshots */
+}
+::view-transition-old(root) { z-index: 1; }    /* outgoing theme stays beneath */
+::view-transition-new(root) { z-index: 999; }  /* incoming theme is the one clipped */
+
 main {
   flex: 1;
   display: flex;
