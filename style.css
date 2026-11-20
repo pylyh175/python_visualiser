@@ -89,7 +89,7 @@ header h1 { font-size: 18px; margin: 0; font-weight: 600; }
    other browsers get an instant swap (see theme.js). */
 /* The snapshot layers are display-only: Chrome paints them in the top layer
    for the duration of the transition, so pointer hit-testing rests on the
-   snapshot (not the live DOM) until the 600 ms spread ends. The page's content
+   snapshot (not the live DOM) until the spread ends. The page's content
    itself is never hidden — this only affects interaction, which you accepted
    as the trade-off of the snapshot-based reveal. */
 ::view-transition-group(root),
