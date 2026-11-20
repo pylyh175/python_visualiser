@@ -46,9 +46,7 @@ export const DSA_DEFAULT_CODE = {
     'k = removeDuplicates(nums)',
     'print("k =", k, "nums[:k] =", nums[:k])',
   ].join('\n'),
-  // 2026-11-17: user's twoSum as written (the __main__ guard runs — the
-  // runner seeds __name__ = '__main__' in the exec globals). Converging
-  // left/right pointers are the classic shape the panel was built for.
+  // two sum default code.
   'two-pointers.two-sum': [
     'def twoSum(num: List[int], target: int) -> List[int]:',
     '    left = 0',
@@ -68,9 +66,7 @@ export const DSA_DEFAULT_CODE = {
     '    lst = [2, 3, 5, 7, 9, 11]',
     '    print(twoSum(lst, 12))',
   ].join('\n'),
-  // 2026-11-19: user's reverse_arr as written (the __main__ guard runs — the
-  // runner seeds __name__ = '__main__' in the exec globals). Swapping ends
-  // inwards is the canonical two-pointers shape.
+  // reverse array / string default code.
   'two-pointers.reverse-array-string': [
     'def reverse_arr(arr: List[int]):',
     '    left = 0',
@@ -87,8 +83,7 @@ export const DSA_DEFAULT_CODE = {
     '    reverse_arr(num)',
     '    print(num)',
   ].join('\n'),
-  // 2026-11-20: user's isPalindrome as written — classic two-pointers
-  // left/right with alnum skipping, case-insensitive compare.
+  // Valid Palindrome default code.
   'two-pointers.valid-palindrome': [
     'def isPalindrome(string: str) -> bool:',
     '    left = 0',
@@ -113,6 +108,28 @@ export const DSA_DEFAULT_CODE = {
     'if __name__ == "__main__":',
     '    s = "A man, a plan, a canal: Panama"',
     '    print(isPalindrome(s))',
+  ].join('\n'),
+  // Container with most water default code.
+  'two-pointers.container-with-most-water': [
+    'def maxArea(height: List[int]) -> int:',
+    '    left = 0',
+    '    right = len(height) - 1',
+    '    maxArea = 0',
+    '',
+    '    while left < right:',
+    '        currentArea = min(height[left], height[right]) * (right - left)',
+    '        maxArea = max(maxArea, currentArea)',
+    '',
+    '        if height[left] < height[right]:',
+    '            left += 1',
+    '        else:',
+    '            right -= 1',
+    '',
+    '    return maxArea',
+    '',
+    'if __name__ == "__main__":',
+    '    heights = [1, 8, 6, 2, 5, 4, 8, 3, 7]',
+    '    print(maxArea(heights))',
   ].join('\n'),
 };
 
