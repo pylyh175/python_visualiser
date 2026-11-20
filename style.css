@@ -89,6 +89,10 @@ main {
 }
 
 /* ---------- left: editor ---------- */
+/* #left must NOT clip: the hierarchical DSA menus are absolutely positioned
+   inside the editor column and have to escape it to the right when the editor
+   is narrow (2026-11-20). The rounded bottom corners are preserved by
+   #controlsPanel below instead of the column's overflow clip. */
 #left {
   flex: 1;
   min-width: 0;
@@ -97,22 +101,26 @@ main {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
 }
 #toolbar {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   display: flex;
+  /* The DSA trigger is nowrap and has a wide min-content floor; below ~560px
+     the controls wrap onto additional rows rather than being cut off. */
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
 }
-/* The execution-steps panel lives inside #left, below the editor: it blends
+/* Execution-steps panel lives inside #left, below the editor: it blends
    into the editor column (no double border) and keeps its natural height so
-   the editor above it absorbs any shrinkage. */
+   the editor above it absorbs any shrinkage. It owns the column's rounded
+   bottom because #left no longer clips (see above). */
 #controlsPanel {
   border: 0;
-  border-radius: 0;
+  border-radius: 0 0 9px 9px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -192,7 +200,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   font-weight: 600;
 }
 #btnVisualize:hover:not(:disabled) { background: #1d4ed8; }
-.hint { font-size: 12px; color: var(--muted); margin-left: auto; }
+/* The hint takes a real flex basis instead of shrinking word-by-word into a
+   tall column; when the row runs out of room it wraps to its own full-width
+   row and stays right-aligned (2026-11-20). */
+.hint { font-size: 12px; color: var(--muted); margin-left: auto; flex: 1 1 120px; text-align: right; }
 
 /* ═══════════════ DSA dropdown (hierarchical, hover-driven) ═══════════════
    The trigger is a quiet context control matching the toolbar's secondary
@@ -264,7 +275,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   padding: 4px 0;
   margin: 0;
   list-style: none;
-  z-index: 100;
+  /* #left no longer clips, so these positioned menus paint in the root
+     stacking context. They must beat the Variables display menu (100) and its
+     panel content when they extend over the output column (2026-11-20). */
+  z-index: 1000;
   display: none;
 }
 .dsa-dropdown:hover .dsa-options,
@@ -327,7 +341,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   padding: 4px 0 4px 6px;
   margin: 0;
   list-style: none;
-  z-index: 101;
+  z-index: 1001;   /* above its parent list (1000) and the Variables menu */
   display: none;
 }
 .dsa-options li:hover > .dsa-submenu,
