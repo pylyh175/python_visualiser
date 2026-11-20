@@ -87,6 +87,33 @@ export const DSA_DEFAULT_CODE = {
     '    reverse_arr(num)',
     '    print(num)',
   ].join('\n'),
+  // 2026-11-20: user's isPalindrome as written — classic two-pointers
+  // left/right with alnum skipping, case-insensitive compare.
+  'two-pointers.valid-palindrome': [
+    'def isPalindrome(string: str) -> bool:',
+    '    left = 0',
+    '    right = len(string) - 1',
+    '',
+    '    while left < right:',
+    '',
+    '        while left < right and not string[left].isalnum():',
+    '            left += 1',
+    '',
+    '        while left < right and not string[right].isalnum():',
+    '            right -= 1',
+    '',
+    '        if string[left].lower() != string[right].lower():',
+    '            return False',
+    '',
+    '        left += 1',
+    '        right -= 1',
+    '',
+    '    return True',
+    '',
+    'if __name__ == "__main__":',
+    '    s = "A man, a plan, a canal: Panama"',
+    '    print(isPalindrome(s))',
+  ].join('\n'),
 };
 
 // Hint text shown while the editor is unlocked.
