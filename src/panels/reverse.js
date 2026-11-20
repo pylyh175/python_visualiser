@@ -5,7 +5,7 @@ import { els } from '../dom.js';
 import { escapeHtml, fmtValue } from '../utils.js';
 import { dsaFamily } from '../config.js';
 import { hideOutTabsAll } from './shared.js';
-import { detectTwoPointers, parseArrayValue } from './twoPointers.js';
+import { detectTwoPointers, parseArrayValue, resolveDetectedFrame } from './twoPointers.js';
 
 const REVERSE_VIS_CAP = 30;  // max array elements displayed
 
@@ -71,15 +71,18 @@ export function renderReverse() {
     }
   }
 
-  // PERSISTENT ANIMATION (2026-11-06-persistent-animation-freeze-design.md):
-  // a detected frame remembers itself (lastValidFrame) and detection-less
-  // steps re-render it verbatim (frozen, flashes suppressed).
-  if (detection) state.lastValidFrame = state.idx;
-  else if (state.lastValidFrame >= 0) {
-    const frozen = detectTwoPointers(state.steps[state.lastValidFrame]?.locals || {});
-    if (frozen) { renderReversePanelContent(frozen, state.lastValidFrame, true); return; }
+  // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
+  // resolve the frame from the TARGET step, not from render history, so a
+  // direct Last/First jump lands on the same frame as stepping there.
+  // Detection-less steps freeze the nearest real frame (flashes suppressed).
+  const frame = resolveDetectedFrame(detectTwoPointers, state.idx);
+  if (!frame) {
+    state.lastValidFrame = -1;
+    renderReversePanelContent(null);
+    return;
   }
-  renderReversePanelContent(detection);
+  state.lastValidFrame = frame.frameStep;
+  renderReversePanelContent(frame.detection, frame.frameStep, frame.frozen);
 }
 
 // Renders the current step's reverse visual into els.reverseBody.

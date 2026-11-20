@@ -98,6 +98,33 @@ export function parseArrayValue(v) {
   return null;
 }
 
+// Deterministic persistent-animation frame (2026-11-20 jump-sync fix).
+// The frame a step shows must be a pure function of THAT step, never of the
+// renders that happened before it: a direct Last/First jump skips the
+// detection steps, so render-history latches (lastValidFrame) froze the pane
+// on whatever frame rendered first. Resolve, in order:
+//   1. the step's own detection — a real, non-frozen frame;
+//   2. the nearest EARLIER detected step — the last ground truth the code had;
+//   3. the nearest LATER detected step — a jump before the pattern engaged;
+//   4. null — the whole trace never detected (honest empty state).
+// `frozen` tells the content renderer to suppress pulses/flashes: the frame
+// belongs to another step, so it is not a new animation event (Q1 2026-11-06).
+export function resolveDetectedFrame(detect, idx = state.idx) {
+  const steps = state.steps;
+  const at = (i) => detect(steps[i]?.locals || {});
+  const own = at(idx);
+  if (own) return { detection: own, frameStep: idx, frozen: false };
+  for (let i = idx - 1; i >= 0; i--) {
+    const det = at(i);
+    if (det) return { detection: det, frameStep: i, frozen: true };
+  }
+  for (let i = idx + 1; i < steps.length; i++) {
+    const det = at(i);
+    if (det) return { detection: det, frameStep: i, frozen: true };
+  }
+  return null;
+}
+
 export function renderTwoPointers() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
 
@@ -128,15 +155,20 @@ export function renderTwoPointers() {
   // (e.g., final step after function returns, or pointer out of bounds),
   // show info message without changing state.idx — navigation to other
   // steps still works.
-  // PERSISTENT ANIMATION (2026-11-06-persistent-animation-freeze-design.md):
-  // a detected frame remembers itself (lastValidFrame) and detection-less
-  // steps re-render it verbatim (frozen) instead of the honest empty message.
-  if (detection) state.lastValidFrame = state.idx;
-  else if (state.lastValidFrame >= 0) {
-    const frozen = detectTwoPointers(state.steps[state.lastValidFrame]?.locals || {});
-    if (frozen) { renderTwoPointersPanelContent(frozen, state.lastValidFrame, true); return; }
+  // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
+  // the displayed frame is resolved from the TARGET step on every render,
+  // never from whichever frame happened to render before it. A direct
+  // Last/First jump therefore lands on the same frame as stepping there;
+  // detection-less steps keep freezing the nearest real frame (pulses
+  // suppressed), and a trace that never detected keeps the honest message.
+  const frame = resolveDetectedFrame(detectTwoPointers, state.idx);
+  if (!frame) {
+    state.lastValidFrame = -1;
+    renderTwoPointersPanelContent(null);
+    return;
   }
-  renderTwoPointersPanelContent(detection);
+  state.lastValidFrame = frame.frameStep;
+  renderTwoPointersPanelContent(frame.detection, frame.frameStep, frame.frozen);
 }
 
 // Renders the Two Pointers visual content into els.twoPtrsBody

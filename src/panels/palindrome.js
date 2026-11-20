@@ -7,7 +7,7 @@ import { els } from '../dom.js';
 import { escapeHtml } from '../utils.js';
 import { dsaFamily } from '../config.js';
 import { hideOutTabsAll } from './shared.js';
-import { PTR_NAME_PAIRS } from './twoPointers.js';
+import { PTR_NAME_PAIRS, resolveDetectedFrame } from './twoPointers.js';
 
 const PAL_VIS_FULL = 40;   // strings up to this length render UNSPLIT
 const PAL_WINDOW_HALF = 6; // windowed strings: 12 cells per window
@@ -128,15 +128,18 @@ export function renderPalindrome() {
     }
   }
 
-  // PERSISTENT ANIMATION (2026-11-06-persistent-animation-freeze-design.md):
-  // a detected frame remembers itself (lastValidFrame) and detection-less
-  // steps re-render it verbatim (frozen, flashes suppressed).
-  if (detection) state.lastValidFrame = state.idx;
-  else if (state.lastValidFrame >= 0) {
-    const frozen = detectPalindrome(state.steps[state.lastValidFrame]?.locals || {});
-    if (frozen) { renderPalindromePanelContent(frozen, state.lastValidFrame, true); return; }
+  // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
+  // resolve the frame from the TARGET step, not from render history, so a
+  // direct Last/First jump lands on the same frame as stepping there.
+  // Detection-less steps freeze the nearest real frame (flashes suppressed).
+  const frame = resolveDetectedFrame(detectPalindrome, state.idx);
+  if (!frame) {
+    state.lastValidFrame = -1;
+    renderPalindromePanelContent(null);
+    return;
   }
-  renderPalindromePanelContent(detection);
+  state.lastValidFrame = frame.frameStep;
+  renderPalindromePanelContent(frame.detection, frame.frameStep, frame.frozen);
 }
 
 // Renders the current step's palindrome visual into els.palindromeBody.
