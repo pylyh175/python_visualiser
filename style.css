@@ -71,35 +71,39 @@ header h1 { font-size: 18px; margin: 0; font-weight: 600; }
   background: var(--bg);
 }
 #status.ready { color: var(--green); }
-/* Dark-mode toggle (2026-11-05-dark-mode-design.md Q4): right corner of the
-   top bar, same row as the title. Glyphs match the app's emoji language. */
+/* Dark-mode toggle: right corner of the top bar,
+same row as the title. Glyphs match the app's emoji language. */
 #themeToggle {
   margin-left: auto;
   padding: 5px 10px;
   font-size: 15px;
   line-height: 1;
 }
-
-/* Theme transition (2026-11-20): the dark-mode ripple is driven by the
-   View Transition API. The root cross-fade is disabled so the INCOMING theme
-   is revealed by a clip-path circle expanding from the toggle button
-   (animated in src/theme.js). Unlike the old solid overlay, the circle reveals
-   the real re-styled content, so text/code/panels are never covered — they
-   change theme exactly as the ripple passes over them. Chromium/Edge only;
-   other browsers get an instant swap (see theme.js). */
-/* The snapshot layers are display-only: Chrome paints them in the top layer
-   for the duration of the transition, so pointer hit-testing rests on the
-   snapshot (not the live DOM) until the spread ends. The page's content
-   itself is never hidden — this only affects interaction, which you accepted
-   as the trade-off of the snapshot-based reveal. */
-::view-transition-group(root),
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;          /* kill the default cross-fade */
-  mix-blend-mode: normal;   /* no blend flash between the two snapshots */
+/* The toggle is inert while a reveal owns the screen (theme.js). Keep its
+   appearance identical to the normal state so the clone and the live button
+   match at handoff. */
+#themeToggle:disabled {
+  opacity: 1;
+  cursor: default;
 }
-::view-transition-old(root) { z-index: 1; }    /* outgoing theme stays beneath */
-::view-transition-new(root) { z-index: 999; }  /* incoming theme is the one clipped */
+
+/* Theme transition (2026-11-20): the dark-mode reveal is a fixed layer holding
+   a clone of the page in the INCOMING theme, clipped by a circle that expands
+   from the toggle (src/theme.js). Because the layer contains real content
+   rather than a flat colour, text, panels and borders stay visible inside the
+   circle; outside it the outgoing theme is still visible. Deliberately
+   snapshot-free: the View Transition API's full-page captures stalled the
+   compositor on slower GPUs and froze the circle mid-spread. */
+#themeWave {
+  position: fixed;
+  inset: 0;
+  z-index: 99;   /* above menus so the reveal covers them too */
+  pointer-events: none;      /* display-only; never intercepts interaction */
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  will-change: clip-path;
+}
 
 main {
   flex: 1;
@@ -561,6 +565,12 @@ textarea[readonly] {
   background-size: 10px 6px;
 }
 :root[data-theme="dark"] #playSpeed {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+/* Same dark chevron for the transition clone (theme.js), which carries the
+   incoming palette on #themeWave instead of on :root. Kept as a separate rule
+   so the :root override above stays the canonical theme declaration. */
+#themeWave[data-theme="dark"] #playSpeed {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
 }
 #playSpeed:hover:not(:disabled) { background-color: var(--bg); }   /* matches button:hover */
