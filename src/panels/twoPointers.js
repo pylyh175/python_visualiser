@@ -134,6 +134,14 @@ export function resolveDetectedFrame(detect, idx = state.idx) {
 // there left them showing the old step (2026-11-23 fix).
 export function engagePointerPane(detect, latchKey, tab = null){
   if (!state.steps.length || state.userTab || state[latchKey]) return;
+  // Terminal runs must stay on their last step: runner.js puts a runtime error
+  // or limit stop there, and renderOutput() only prints that message at the
+  // final index. Consume the latch without jumping so later navigation in
+  // this run is not hijacked by a pending engage (2026-11-23 fix).
+  if (state.programError || state.stoppedRun) {
+    state[latchKey] = true;
+    return;
+  }
   const hit = (i) => detect(state.steps[i]?.locals || {});
   const at = hit(state.idx) ? state.idx : state.steps.findIndex((_, i) => hit(i));
   if (at < 0) return;
