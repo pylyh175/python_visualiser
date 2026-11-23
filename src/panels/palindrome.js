@@ -8,6 +8,7 @@ import { escapeHtml } from '../utils.js';
 import { dsaFamily } from '../config.js';
 import { hideOutTabsAll } from './shared.js';
 import { PTR_NAME_PAIRS, resolveDetectedFrame } from './twoPointers.js';
+import { registerPane } from './registry.js';
 
 const PAL_VIS_FULL = 40;   // strings up to this length render UNSPLIT
 const PAL_WINDOW_HALF = 6; // windowed strings: 12 cells per window
@@ -99,7 +100,7 @@ export function renderPalindrome() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
 
   // The one-time tab switch + jump to the first detected step happens in
-  // render() via engagePointerPane, before the controls are drawn.
+  // render() via the pane registry's one-time engage, before the controls are drawn.
 
   // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
   // resolve the frame from the TARGET step, not from render history, so a
@@ -225,3 +226,15 @@ function renderPalindromePanelContent(detection, frameStep = state.idx, frozen =
     </div>
   `;
 }
+
+registerPane({
+  id: 'palindrome',
+  label: 'Valid Palindrome',
+  family: 'two-pointers',
+  mode: 'two-pointers.valid-palindrome',
+  tabId: 'tabPalindrome',
+  bodyId: 'palindromeBody',
+  latch: 'palindromeAnnounced',
+  render: renderPalindromePanel,
+  engage: { detect: detectPalindrome, tab: 'palindrome' },
+});

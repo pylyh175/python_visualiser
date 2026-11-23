@@ -5,6 +5,7 @@ import { els } from '../dom.js';
 import { STACK_VIS_CAP, STACK_CONTRACT } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
 import { hideOutTabsAll } from './shared.js';
+import { registerPane } from './registry.js';
 
 // Lightweight text scan of the editor source (block parser; no AST library).
 // Multi-line def headers and param defaults ending in a tuple degrade
@@ -451,3 +452,13 @@ export function renderStack() {
     `<div class="sstack">${slotHtml.join('\n')}</div>`;
   els.stackBody.scrollTop = 0;
 }
+
+registerPane({
+  id: 'stack',
+  label: 'Stack',
+  family: 'stack',
+  tabId: 'tabStack',
+  bodyId: 'stackBody',
+  latch: 'stackAnnounced',
+  render: renderStack,
+});

@@ -5,6 +5,7 @@ import { els } from '../dom.js';
 import { escapeHtml, fmtValue } from '../utils.js';
 import { dsaFamily } from '../config.js';
 import { hideOutTabsAll } from './shared.js';
+import { registerPane } from './registry.js';
 
 const TWOPTR_VIS_CAP = 30;  // max array elements displayed
 
@@ -125,30 +126,11 @@ export function resolveDetectedFrame(detect, idx = state.idx) {
   return null;
 }
 
-// One-time engage for a pointer pane, run by render() BEFORE anything is
-// drawn: when the current step has no detection, jump to the first step that
-// does, and (for sub-mode panes) switch to the pane's tab. Gated on the
-// pane's announce latch so it fires once per run and never fights the user's
-// navigation. It must not run inside a content renderer: render() draws the
-// step label, slider, editor arrows and Variables first, so moving state.idx
-// there left them showing the old step (2026-11-23 fix).
-export function engagePointerPane(detect, latchKey, tab = null){
-  if (!state.steps.length || state.userTab || state[latchKey]) return;
-  // Terminal runs must stay on their last step: runner.js puts a runtime error
-  // or limit stop there, and renderOutput() only prints that message at the
-  // final index. Consume the latch without jumping so later navigation in
-  // this run is not hijacked by a pending engage (2026-11-23 fix).
-  if (state.programError || state.stoppedRun) {
-    state[latchKey] = true;
-    return;
-  }
-  const hit = (i) => detect(state.steps[i]?.locals || {});
-  const at = hit(state.idx) ? state.idx : state.steps.findIndex((_, i) => hit(i));
-  if (at < 0) return;
-  state.idx = at;
-  state[latchKey] = true;
-  if (tab) state.outTab = tab;
-}
+// One-time engage for a pointer pane lives in the pane registry (registry.js):
+// it resolves the active descriptor's detector, jumps to the first detected
+// step and switches the pane's tab. Content renderers must never move
+// state.idx: render() draws the step label, slider, editor arrows and
+// Variables around them (2026-11-23 fix).
 
 export function renderTwoPointers() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
@@ -256,24 +238,13 @@ export function renderTwoPointersPanel() {
   renderTwoPointers();
 }
 
-els.tabTwoPtrs.addEventListener('click', () => {
-  if (state.steps.length) state.userTab = true;
-  renderTwoPointersPanel();
+registerPane({
+  id: 'two-pointers',
+  label: 'Two Pointers',
+  family: 'two-pointers',
+  tabId: 'tabTwoPtrs',
+  bodyId: 'twoPtrsBody',
+  latch: 'twoPointersAnnounced',
+  render: renderTwoPointersPanel,
+  engage: { detect: detectTwoPointers },
 });
-
-export function initTwoPointersTab() {
-  // Called from bootstrap to ensure tab exists
-  if (!els.tabTwoPtrs) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.id = 'tabTwoPtrs';
-    btn.textContent = 'Two Pointers';
-    btn.hidden = true;
-    els.outTabs.appendChild(btn);
-    els.tabTwoPtrs = btn;
-    btn.addEventListener('click', () => {
-      if (state.steps.length) state.userTab = true;
-      renderTwoPointersPanel();
-    });
-  }
-}

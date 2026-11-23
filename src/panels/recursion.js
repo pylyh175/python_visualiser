@@ -4,7 +4,7 @@ import { state } from '../state.js';
 import { els } from '../dom.js';
 import { TREE_NODE_CAP, dsaFamily } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
-import { hideOutTabsAll } from './shared.js';
+import { registerPane } from './registry.js';
 
 // Replay steps 0..idx into a tree: each step's `stack` (outermost user frame
 // first) registers or confirms its frames, joined parent ← child following
@@ -164,3 +164,13 @@ export function renderTree() {
   els.treeBody.innerHTML = lines.join('\n') || '<span class="tn-more">(no calls yet)</span>';
   els.treeBody.scrollTop = els.treeBody.scrollHeight;
 }
+
+registerPane({
+  id: 'tree',
+  label: 'Recursion',
+  family: 'recursion',
+  tabId: 'tabTree',
+  bodyId: 'treeBody',
+  latch: 'treeAnnounced',
+  render: renderTree,
+});

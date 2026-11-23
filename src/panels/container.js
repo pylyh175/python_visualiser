@@ -13,6 +13,7 @@ import { escapeHtml, fmtValue } from '../utils.js';
 import { dsaFamily } from '../config.js';
 import { hideOutTabsAll } from './shared.js';
 import { detectTwoPointers, parseArrayValue, resolveDetectedFrame } from './twoPointers.js';
+import { registerPane } from './registry.js';
 
 const CONTAINER_VIS_CAP = 30;
 // Thin fixed bars (2026-11-06-container-finalized-bars-design.md Q3)
@@ -81,7 +82,7 @@ export function renderContainer() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
 
   // The one-time tab switch + jump to the first detected step happens in
-  // render() via engagePointerPane, before the controls are drawn.
+  // render() via the pane registry's one-time engage, before the controls are drawn.
 
   // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
   // resolve the frame from the TARGET step, not from render history, so a
@@ -305,3 +306,15 @@ function positionWater() {
 
 // Store waterLevel for positionWater closure
 let waterLevel = 0;
+
+registerPane({
+  id: 'container',
+  label: 'Container With Most Water',
+  family: 'two-pointers',
+  mode: 'two-pointers.container-with-most-water',
+  tabId: 'tabContainer',
+  bodyId: 'containerBody',
+  latch: 'containerAnnounced',
+  render: renderContainerPanel,
+  engage: { detect: detectTwoPointers, tab: 'container' },
+});

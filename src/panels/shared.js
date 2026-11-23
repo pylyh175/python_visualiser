@@ -2,23 +2,18 @@
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
+import { hideAllPanes, resetPaneState } from './registry.js';
 
-// Shared "no tab family" layout: plain output, all panels hidden, tab state
-// reset. `mode` is recorded (full DSA id, matching state.outFam's semantics)
-// so a later render with the same mode doesn't re-reset (and undo a manual
-// tab choice) spuriously.
+// Shared "no tab family" layout: plain output, every pane hidden, tab state
+// reset. Pane tabs/bodies come from the registry, so this covers new
+// visualisers (including their latches) without edits. `mode` is recorded
+// (full DSA id, matching state.outFam's semantics) so a later render with the
+// same mode doesn't re-reset (and undo a manual tab choice) spuriously.
 export function hideOutTabsAll(mode) {
   els.outTabs.hidden = true;
   els.outTitle.hidden = false;
-  els.output.hidden = false;
-  els.treeBody.hidden = true;
-  els.stackBody.hidden = true;
-  els.twoPtrsBody.hidden = true;
-  els.reverseBody.hidden = true;
-  els.palindromeBody.hidden = true;
+  hideAllPanes();
   state.outTab = 'out'; state.userTab = false;
-  state.treeAnnounced = false; state.stackAnnounced = false;
-  state.reverseAnnounced = false;
-  state.palindromeAnnounced = false;
+  resetPaneState();
   state.outFam = mode || 'none';
 }

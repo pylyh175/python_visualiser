@@ -6,6 +6,7 @@ import { escapeHtml, fmtValue } from '../utils.js';
 import { dsaFamily } from '../config.js';
 import { hideOutTabsAll } from './shared.js';
 import { detectTwoPointers, parseArrayValue, resolveDetectedFrame } from './twoPointers.js';
+import { registerPane } from './registry.js';
 
 const REVERSE_VIS_CAP = 30;  // max array elements displayed
 
@@ -35,8 +36,9 @@ export function renderReversePanel() {
 export function renderReverse() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
 
-  // The one-time tab switch + jump to the first detected step happens in
-  // render() via engagePointerPane, before the controls are drawn.
+  // The one-time tab switch + jump to the first detected step happ
+  // ens in
+  // render() via the pane registry's one-time engage, before the controls are drawn.
 
   // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
   // resolve the frame from the TARGET step, not from render history, so a
@@ -122,3 +124,15 @@ function renderReversePanelContent(detection, frameStep = state.idx, frozen = fa
     </div>
   `;
 }
+
+registerPane({
+  id: 'reverse',
+  label: 'Reverse Array/String',
+  family: 'two-pointers',
+  mode: 'two-pointers.reverse-array-string',
+  tabId: 'tabReverse',
+  bodyId: 'reverseBody',
+  latch: 'reverseAnnounced',
+  render: renderReversePanel,
+  engage: { detect: detectTwoPointers, tab: 'reverse' },
+});

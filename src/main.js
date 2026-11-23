@@ -13,7 +13,6 @@ import './theme.js';
 // Explicit start-up calls.
 import { init } from './pyodide.js';
 import { render } from './panels/output.js';
-import { initTwoPointersTab } from './panels/twoPointers.js';
 import { initSplitter } from './splitters/horizontal.js';
 import { initVarsSplitter } from './splitters/vertical.js';
 import { initContainerResize } from './panels/container.js';
@@ -24,7 +23,6 @@ render();
 init();
 initSplitter();
 initVarsSplitter();
-initTwoPointersTab();
 buildDsaMenu();
 initDisplayOptions();
 initContainerResize();
