@@ -35,7 +35,7 @@ import { els } from './dom.js';
 const KEY = 'viz.theme';
 const ICON = { light: '🌙', dark: '☀️' };
 const LABEL = { light: 'Switch to dark mode', dark: 'Switch to light mode' };
-const WAVE_DURATION = 340;      // ms — snappy and smooth
+const WAVE_DURATION = 500;      // ms — snappy and smooth
 const WAVE_EASING = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
 // After the reveal ends, stay locked briefly before the next click.
 const SETTLE_MS = 150;
