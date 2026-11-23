@@ -98,35 +98,8 @@ export function renderPalindromePanel() {
 export function renderPalindrome() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
 
-  const locals = state.steps[state.idx]?.locals || {};
-  const detection = detectPalindrome(locals);
-
-  // Stack-style one-time auto-switch, applied also inside the auto-advance
-  // below — it must happen on the very first render even when step 0 itself
-  // is not a detected step (grilled Q6; mirrors reverse.js).
-  if (detection && !state.userTab && !state.palindromeAnnounced) {
-    state.palindromeAnnounced = true;
-    state.outTab = 'palindrome';
-  }
-
-  // ONE-TIME (2026-11-06 navigation fix, mirrors reverse.js): the advance is
-  // gated on the same palindromeAnnounced latch — every detection-less render
-  // used to re-fire the scan and hijack step navigation.
-  if (!detection && !state.userTab && !state.palindromeAnnounced) {
-    for (let i = 0; i < state.steps.length; i++) {
-      const det = detectPalindrome(state.steps[i]?.locals || {});
-      if (det) {
-        state.idx = i;
-        state.lastValidFrame = i;
-        if (!state.palindromeAnnounced) {
-          state.palindromeAnnounced = true;
-          state.outTab = 'palindrome';
-        }
-        renderPalindromePanelContent(det);
-        return;
-      }
-    }
-  }
+  // The one-time tab switch + jump to the first detected step happens in
+  // render() via engagePointerPane, before the controls are drawn.
 
   // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
   // resolve the frame from the TARGET step, not from render history, so a

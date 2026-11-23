@@ -9,14 +9,18 @@ import { dsaFamily } from '../config.js';
 import { renderVars } from './variables.js';
 import { renderTree, recursionSeenUpTo } from './recursion.js';
 import { renderStack } from './stack.js';
-import { renderTwoPointersPanel } from './twoPointers.js';
+import { renderTwoPointersPanel, engagePointerPane, detectTwoPointers } from './twoPointers.js';
 import { renderReversePanel } from './reverse.js';
-import { renderPalindromePanel } from './palindrome.js';
+import { renderPalindromePanel, detectPalindrome } from './palindrome.js';
 import { renderContainerPanel } from './container.js';
 import { hideOutTabsAll } from './shared.js';
 
 // Master render: editor mirror, playback controls, all output-panel bodies.
+// State changes come first (mode-change reset, one-time pane engage), so
+// everything drawn below agrees on the same state.idx / state.outTab.
 export function render() {
+  syncOutFamily();
+  engageActivePane();
   renderEditor();
   const total = state.steps.length;
   els.stepLabel.textContent = total ? `Step ${state.idx + 1} / ${total}` : 'Step 0 / 0';
@@ -86,6 +90,37 @@ export function renderOutput() {
   els.output.scrollTop = els.output.scrollHeight;
 }
 
+// Any DSA change (family OR sub-mode) resets the manual tab choice and the
+// one-time announce latches. Idempotent: a no-op while the mode is unchanged.
+function syncOutFamily() {
+  if (state.outFam === state.dsaMode) return;
+  state.outFam = state.dsaMode;
+  state.outTab = 'out'; state.userTab = false;
+  state.treeAnnounced = false; state.stackAnnounced = false;
+  state.twoPointersAnnounced = false;
+  state.reverseAnnounced = false;
+  state.palindromeAnnounced = false;
+  state.containerAnnounced = false;
+  state.lastValidFrame = -1;   // a frozen frame never bleeds across sub-modes
+}
+
+// The two-pointer panes' one-time jump to their first detected step (and tab
+// switch). Runs before render() draws anything — see engagePointerPane.
+function engageActivePane() {
+  if (dsaFamily(state.dsaMode) !== 'two-pointers') return;
+  switch (state.dsaMode) {
+    case 'two-pointers.reverse-array-string':
+      return engagePointerPane(detectTwoPointers, 'reverseAnnounced', 'reverse');
+    case 'two-pointers.valid-palindrome':
+      return engagePointerPane(detectPalindrome, 'palindromeAnnounced', 'palindrome');
+    case 'two-pointers.container-with-most-water':
+      return engagePointerPane(detectTwoPointers, 'containerAnnounced', 'container');
+    default:
+      // Generic pane: jumps to the detected step but keeps the Output tab.
+      return engagePointerPane(detectTwoPointers, 'twoPointersAnnounced');
+  }
+}
+
 // The panel shows one tab FAMILY per DSA mode: recursion → Output|Recursion
 // (renderTree), stack → Output|Stack (renderStack), two-pointers →
 // Output|Two Pointers (renderTwoPointersPanel) or — when the reverse-array
@@ -95,15 +130,7 @@ export function renderOutput() {
 // choice.
 export function renderOutPanel() {
   const fam = dsaFamily(state.dsaMode);
-  if (state.outFam !== state.dsaMode) {
-    state.outFam = state.dsaMode;
-    state.outTab = 'out'; state.userTab = false;
-    state.treeAnnounced = false; state.stackAnnounced = false;
-    state.reverseAnnounced = false;
-    state.palindromeAnnounced = false;
-    state.containerAnnounced = false;
-    state.lastValidFrame = -1;   // a frozen frame never bleeds across sub-modes
-  }
+  syncOutFamily();
   const isReverse = state.dsaMode === 'two-pointers.reverse-array-string';
   const isPalindrome = state.dsaMode === 'two-pointers.valid-palindrome';
   const isContainer = state.dsaMode === 'two-pointers.container-with-most-water';

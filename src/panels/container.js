@@ -80,34 +80,8 @@ export function renderContainerPanel() {
 export function renderContainer() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
 
-  const locals = state.steps[state.idx]?.locals || {};
-  const detection = detectTwoPointers(locals);
-
-  if (detection && !state.userTab && !state.containerAnnounced) {
-    state.containerAnnounced = true;
-    state.outTab = 'container';
-  }
-
-  // ONE-TIME (2026-11-06 navigation fix, mirrors reverse.js): the advance is
-  // gated on the same containerAnnounced latch — every detection-less render
-  // used to re-fire the scan and hijack step navigation (Next from an early
-  // step snapped back to the first detected step; stepping into the final step
-  // teleported back too, because its merged snapshot fails detection).
-  if (!detection && !state.userTab && !state.containerAnnounced) {
-    for (let i = 0; i < state.steps.length; i++) {
-      const det = detectTwoPointers(state.steps[i]?.locals || {});
-      if (det) {
-        state.idx = i;
-        state.lastValidFrame = i;
-        if (!state.containerAnnounced) {
-          state.containerAnnounced = true;
-          state.outTab = 'container';
-        }
-        renderContainerPanelContent(det);
-        return;
-      }
-    }
-  }
+  // The one-time tab switch + jump to the first detected step happens in
+  // render() via engagePointerPane, before the controls are drawn.
 
   // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
   // resolve the frame from the TARGET step, not from render history, so a

@@ -35,41 +35,8 @@ export function renderReversePanel() {
 export function renderReverse() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
 
-  const locals = state.steps[state.idx]?.locals || {};
-  const detection = detectTwoPointers(locals);
-
-  // Stack-style one-time auto-switch: the tab exists the moment the pattern is
-  // detected and the user hasn't manually picked a tab this run
-  // (2026-11-04-two-pointers-reverse-submode-design.md).
-  if (detection && !state.userTab && !state.reverseAnnounced) {
-    state.reverseAnnounced = true;
-    state.outTab = 'reverse';
-  }
-
-  // If detection fails at current step (e.g., final step after the function
-  // returns, or pointer out of bounds), auto-advance to the first step with a
-  // valid detection — same pattern as renderTwoPointers, never when the user
-  // manually chose a tab. The auto-switch is applied here too: it must happen
-  // on the very first render, even when step 0 itself is not a detected step.
-  // ONE-TIME (2026-11-06 navigation fix): the advance is gated on the same
-  // reverseAnnounced latch as the tab switch — before, every detection-less
-  // render re-fired the scan and HIJACKED the user's step navigation (Next
-  // snapped back to the first detected step). Once engaged, stepping is free.
-  if (!detection && !state.userTab && !state.reverseAnnounced) {
-    for (let i = 0; i < state.steps.length; i++) {
-      const det = detectTwoPointers(state.steps[i]?.locals || {});
-      if (det) {
-        state.idx = i;
-        state.lastValidFrame = i;
-        if (!state.reverseAnnounced) {
-          state.reverseAnnounced = true;
-          state.outTab = 'reverse';
-        }
-        renderReversePanelContent(det);
-        return;
-      }
-    }
-  }
+  // The one-time tab switch + jump to the first detected step happens in
+  // render() via engagePointerPane, before the controls are drawn.
 
   // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
   // resolve the frame from the TARGET step, not from render history, so a

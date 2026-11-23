@@ -125,31 +125,25 @@ export function resolveDetectedFrame(detect, idx = state.idx) {
   return null;
 }
 
+// One-time engage for a pointer pane, run by render() BEFORE anything is
+// drawn: when the current step has no detection, jump to the first step that
+// does, and (for sub-mode panes) switch to the pane's tab. Gated on the
+// pane's announce latch so it fires once per run and never fights the user's
+// navigation. It must not run inside a content renderer: render() draws the
+// step label, slider, editor arrows and Variables first, so moving state.idx
+// there left them showing the old step (2026-11-23 fix).
+export function engagePointerPane(detect, latchKey, tab = null){
+  if (!state.steps.length || state.userTab || state[latchKey]) return;
+  const hit = (i) => detect(state.steps[i]?.locals || {});
+  const at = hit(state.idx) ? state.idx : state.steps.findIndex((_, i) => hit(i));
+  if (at < 0) return;
+  state.idx = at;
+  state[latchKey] = true;
+  if (tab) state.outTab = tab;
+}
+
 export function renderTwoPointers() {
   if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
-
-  const locals = state.steps[state.idx]?.locals || {};
-  const detection = detectTwoPointers(locals);
-
-  // If detection fails at current step (e.g., final step after function returns,
-  // or pointer out of bounds), auto-advance to first step with valid detection.
-  // ONE-TIME per run (2026-11-06 navigation fix, mirrors the other two-pointer
-  // panes): the advance is gated on the twoPointersAnnounced latch — every
-  // detection-less render used to re-fire the scan and hijack step navigation.
-  if (!detection && !state.userTab && !state.twoPointersAnnounced) {
-    for (let i = 0; i < state.steps.length; i++) {
-      if (detectTwoPointers(state.steps[i]?.locals || {})) {
-        state.idx = i;
-        state.twoPointersAnnounced = true;
-        state.lastValidFrame = i;
-        // Re-detect at new index
-        const newLocals = state.steps[state.idx]?.locals || {};
-        const newDetection = detectTwoPointers(newLocals);
-        renderTwoPointersPanelContent(newDetection);
-        return;
-      }
-    }
-  }
 
   // Render current step's data. If detection fails at this step
   // (e.g., final step after function returns, or pointer out of bounds),
