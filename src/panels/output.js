@@ -66,7 +66,11 @@ export function renderOutput() {
   let text = hasAlgoTab
     ? state.programOutput
     : (step.outLen != null ? state.programOutput.slice(0, step.outLen) : state.programOutput);
-  if (text) text += '\n';
+  // Printed output is untrusted text. Escape it before appending the app's
+  // own markup below; otherwise print("<img onerror=...>") becomes live DOM
+  // in the page origin (2026-11-23 fix). Newlines survive: #outputBody is
+  // white-space: pre-wrap.
+  if (text) text = escapeHtml(text) + '\n';
   if (state.idx === state.steps.length - 1 && state.programError) {
     text += `<span class="err">${escapeHtml(errorDisplayText())}</span>`;
   }
