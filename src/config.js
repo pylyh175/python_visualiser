@@ -160,6 +160,13 @@ export const DSA_MODES = [
     { id: 'sliding-window.find-k-closest-elements', label: 'Find K Closest Elements' },
     { id: 'sliding-window.lz77', label: 'LZ77' }
   ] },
+  { id: 'dynamic-programming', label: 'Dynamic Programming',   status: 'planned', subModes: [
+    { id: 'dynamic-programming.coins-change', label: 'Coins Change' },
+    { id: 'dynamic-programming.unbounded-knapsack', label: 'Unbounded Knapsack' },
+    { id: 'dynamic-programming.0-1-knapsack', label: '0/1 Knapsack' },
+    { id: 'dynamic-programming.edit-distance', label: 'Edit Distance' }
+  ]
+   },
   { id: 'dsa',          label: 'DSA', folder: true,   status: 'ready', subModes: [
     { id: 'stack',       label: 'Stack',       status: 'ready' },
     { id: 'queue',       label: 'Queue',       status: 'planned' },
