@@ -368,6 +368,18 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   list-style: none;
   z-index: 1001;   /* above its parent list (1000) and the Variables menu */
   display: none;
+  /* Long sub-mode registries scroll inside the flyout instead of stretching
+     the page (2026-11-23). CSS caps the height at the smaller of a compact
+     menu height and a share of the viewport; dsa.js tightens it further on
+     open when a lower parent row would cross the bottom edge. Only level two
+     may clip: it has no nested flyouts, unlike .dsa-options, which must stay
+     unclipped for this menu to pop out beside its row (see the note above
+     .dsa-options). Vertical only — a horizontally scrolling hover menu would
+     be hostile. */
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 .dsa-options li:hover > .dsa-submenu,
 .dsa-options li:focus-within > .dsa-submenu {
@@ -930,7 +942,7 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 /* Invisible filler that keeps ragged matrix rows aligned to the column count. */
 #varsBody .mem-gpad { border: none; background: transparent; min-width: 0; padding: 1px 0; }
 
-/* ── Themed scrollbars: code editor + Variables box (2026-11-19, grilled Q1–Q5) ──
+/* ── Themed scrollbars: code editor + Variables box + sub-mode menu (2026-11-19, grilled Q1–Q5) ──
    The rest colour is the theme gutter, hover/drag is the theme accent, and both
    resolve through the tokens above, so light and dark need no separate rules.
    Firefox takes the coarse standard properties (thin width, matched colours,
@@ -943,22 +955,26 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
    in very long files. */
 @supports not selector(::-webkit-scrollbar) {
   #codeInput,
-  #varsBody {
+  #varsBody,
+  .dsa-submenu {
     scrollbar-width: thin;
     scrollbar-color: var(--sb-thumb) transparent;
   }
 }
 #codeInput::-webkit-scrollbar,
-#varsBody::-webkit-scrollbar {
+#varsBody::-webkit-scrollbar,
+.dsa-submenu::-webkit-scrollbar {
   width: var(--sb-size);
   height: var(--sb-size);
 }
 #codeInput::-webkit-scrollbar-track,
-#varsBody::-webkit-scrollbar-track {
+#varsBody::-webkit-scrollbar-track,
+.dsa-submenu::-webkit-scrollbar-track {
   background: transparent;
 }
 #codeInput::-webkit-scrollbar-thumb,
-#varsBody::-webkit-scrollbar-thumb {
+#varsBody::-webkit-scrollbar-thumb,
+.dsa-submenu::-webkit-scrollbar-thumb {
   min-height: 28px;
   min-width: 28px;
   background-color: var(--sb-thumb);
@@ -968,12 +984,15 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 }
 #codeInput::-webkit-scrollbar-thumb:hover,
 #varsBody::-webkit-scrollbar-thumb:hover,
+.dsa-submenu::-webkit-scrollbar-thumb:hover,
 #codeInput::-webkit-scrollbar-thumb:active,
-#varsBody::-webkit-scrollbar-thumb:active {
+#varsBody::-webkit-scrollbar-thumb:active,
+.dsa-submenu::-webkit-scrollbar-thumb:active {
   background-color: var(--sb-thumb-hover);
 }
 #codeInput::-webkit-scrollbar-corner,
-#varsBody::-webkit-scrollbar-corner {
+#varsBody::-webkit-scrollbar-corner,
+.dsa-submenu::-webkit-scrollbar-corner {
   background: transparent;
 }
 

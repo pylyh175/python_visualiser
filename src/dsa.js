@@ -61,6 +61,36 @@ export function buildDsaMenu() {
         submenu.appendChild(subLi);
       }
       li.appendChild(submenu);
+      // Long sub-menus scroll (style.css cap): every fresh open starts at the
+      // top, then centres the selected row, so a reopened flyout lands on the
+      // current choice instead of an arbitrary offset. Pointer entry and
+      // focus on the parent row are the only "fresh open" moments — tabbing
+      // between submenu items must not yank the list back.
+      const prepareSubmenu = () => {
+        requestAnimationFrame(() => {
+          if (!submenu.clientHeight) return;   // closed again before the frame
+          // CSS caps at min(360px, 60vh); on a short window a lower parent row
+          // could still push the flyout past the bottom edge, so tighten it to
+          // the room left below its anchor. Recomputed on every open, because
+          // the anchor row and the window height both vary.
+          const rect = submenu.getBoundingClientRect();
+          const room = window.innerHeight - rect.top - 8;
+          if (rect.bottom > window.innerHeight && room > 0) {
+            submenu.style.maxHeight = `${Math.min(360, window.innerHeight * 0.6, room)}px`;
+          } else {
+            submenu.style.removeProperty('max-height');
+          }
+          const active = submenu.querySelector('button.active');
+          if (!active) { submenu.scrollTop = 0; return; }
+          // Rows inside the flyout are position:relative too (.dsa-options li),
+          // so offsetTop is row-local. Use viewport rects: the delta already
+          // includes the list's current scroll offset.
+          const delta = active.getBoundingClientRect().top - submenu.getBoundingClientRect().top;
+          submenu.scrollTop += delta - (submenu.clientHeight - active.offsetHeight) / 2;
+        });
+      };
+      li.addEventListener('mouseenter', prepareSubmenu);
+      btn.addEventListener('focus', prepareSubmenu);
     }
     options.appendChild(li);
   }
