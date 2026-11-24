@@ -4,8 +4,8 @@ import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml, fmtValue } from '../utils.js';
 import { dsaFamily } from '../config.js';
-import { hideOutTabsAll } from './shared.js';
 import { registerPane } from './registry.js';
+import { hideOutputPanes } from './paneController.js';
 
 const TWOPTR_VIS_CAP = 30;  // max array elements displayed
 
@@ -133,7 +133,7 @@ export function resolveDetectedFrame(detect, idx = state.idx) {
 // Variables around them (2026-11-23 fix).
 
 export function renderTwoPointers() {
-  if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
+  if (!state.steps.length) { hideOutputPanes(state.dsaMode); return; }
 
   // Render current step's data. If detection fails at this step
   // (e.g., final step after function returns, or pointer out of bounds),
@@ -147,16 +147,16 @@ export function renderTwoPointers() {
   // suppressed), and a trace that never detected keeps the honest message.
   const frame = resolveDetectedFrame(detectTwoPointers, state.idx);
   if (!frame) {
-    state.lastValidFrame = -1;
+    state.panes.lastValidFrame = -1;
     renderTwoPointersPanelContent(null);
     return;
   }
-  state.lastValidFrame = frame.frameStep;
+  state.panes.lastValidFrame = frame.frameStep;
   renderTwoPointersPanelContent(frame.detection, frame.frameStep, frame.frozen);
 }
 
 // Renders the Two Pointers visual content into els.twoPtrsBody
-// Does NOT manipulate visibility - that's handled by renderOutPanel based on state.outTab
+// Does NOT manipulate visibility — paneController owns tab/body selection.
 // (detection, frameStep, frozen): uniform persistent-animation contract — the
 // generic pane's content is idx-free and pulse-free; the frame params matter
 // for future panels that follow this shape.
@@ -171,7 +171,7 @@ function renderTwoPointersPanelContent(detection, frameStep = state.idx, frozen 
 
   const { arrName, arrValue, leftName, rightName, leftIdx, rightIdx } = detection;
   const arr = parseArrayValue(arrValue);
-  if (!arr) { hideOutTabsAll(state.dsaMode); return; }
+  if (!arr) { hideOutputPanes(state.dsaMode); return; }
 
   const len = arr.length;
   const visLen = Math.min(len, TWOPTR_VIS_CAP);
@@ -221,20 +221,8 @@ function renderTwoPointersPanelContent(detection, frameStep = state.idx, frozen 
 }
 
 export function renderTwoPointersPanel() {
-  const fam = dsaFamily(state.dsaMode);
-  if (fam !== 'two-pointers') {
-    els.tabTwoPtrs.hidden = true;
-    els.twoPtrsBody.hidden = true;
-    return;
-  }
-  // Show the tab family for two-pointers mode
-  els.outTabs.hidden = false;
-  els.outTitle.hidden = true;
-  els.tabTwoPtrs.hidden = false;
-  // Visibility of output vs twoPtrsBody is controlled by state.outTab
-  els.output.hidden = state.outTab !== 'out';
-  els.twoPtrsBody.hidden = state.outTab !== 'two-pointers';
-  // Render the visual content
+  // Tab/body visibility is owned by paneController; this only renders content.
+  if (dsaFamily(state.dsaMode) !== 'two-pointers') return;
   renderTwoPointers();
 }
 
@@ -244,7 +232,6 @@ registerPane({
   family: 'two-pointers',
   tabId: 'tabTwoPtrs',
   bodyId: 'twoPtrsBody',
-  latch: 'twoPointersAnnounced',
   render: renderTwoPointersPanel,
   engage: { detect: detectTwoPointers },
 });

@@ -5,6 +5,7 @@ import { els } from '../dom.js';
 import { TREE_NODE_CAP, dsaFamily } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
 import { registerPane } from './registry.js';
+import { announceOnce } from './paneController.js';
 
 // Replay steps 0..idx into a tree: each step's `stack` (outermost user frame
 // first) registers or confirms its frames, joined parent ← child following
@@ -68,26 +69,17 @@ export function renderTree() {
   // Tabs exist for the WHOLE run in Recursion mode (2026-11-08 user report:
   // right after Visualize — before the first step — the Recursion tab must
   // already be clickable, showing the honest "(no calls yet)" empty tree).
-  // renderOutPanel only calls here with a live trace in this family, so the
+  // renderOutputPanel only calls here with a live trace in this family, so the
   // family itself is the only gate; the earlier recursionSeenUpTo(idx) gate
   // (2026-11-02-recursion-detection-design.md) deferred the tab to the first
   // re-entrant chain, which hid it exactly when a user looks for it. Stepping
   // back before that first chain now keeps the tab instead of hiding it.
   // The auto-switch latch below still fires only on real re-entry.
-  els.outTabs.hidden = false;
-  els.outTitle.hidden = true;
   // Once the current chain starts re-entering code, show the tree (first time
   // only — after that a manual tab choice is sticky until the run is reset).
   const cur = state.steps[state.idx].stack || [];
-  if (!state.userTab && !state.treeAnnounced && chainIsRecursive(cur)) {
-    state.treeAnnounced = true;
-    state.outTab = 'tree';
-  }
-  els.tabOut.classList.toggle('active', state.outTab === 'out');
-  els.tabTree.classList.toggle('active', state.outTab === 'tree');
-  els.output.hidden = state.outTab !== 'out';
-  els.treeBody.hidden = state.outTab !== 'tree';
-  if (state.outTab !== 'tree') return;
+  announceOnce('tree', chainIsRecursive(cur));
+  if (state.panes.tab !== 'tree') return;
 
   const nodes = treeData(state.idx);
   // Cap the drawing; nodes beyond the cap are always later in call order
@@ -171,6 +163,5 @@ registerPane({
   family: 'recursion',
   tabId: 'tabTree',
   bodyId: 'treeBody',
-  latch: 'treeAnnounced',
   render: renderTree,
 });

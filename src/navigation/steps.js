@@ -175,6 +175,24 @@ els.textarea.addEventListener('pointerdown', cancelStepGlide, { passive: true })
 
 /* ---------- playback controls ---------- */
 
+// Playback controls are live whenever a trace exists — including terminal
+// states (successful final step, runtime error, limit stop) — so users can
+// revisit any recorded step; only a real edit resets the run. render() calls
+// this after the editor and before the output panel.
+export function renderStepControls() {
+  const total = state.steps.length;
+  els.stepLabel.textContent = total ? `Step ${state.idx + 1} / ${total}` : 'Step 0 / 0';
+  const playbackOn = total > 0;
+  els.first.disabled = els.prev.disabled = (state.idx <= 0 || !playbackOn);
+  els.next.disabled = els.last.disabled = (state.idx >= total - 1 || !playbackOn);
+  els.slider.max = String(Math.max(0, total - 1));
+  els.slider.value = String(state.idx);
+  els.slider.disabled = !playbackOn;
+  // Auto-play obeys the same gating (grilled Q5); while playing the button
+  // reads "⏸ Pause" and stays enabled — playbackOn is true whenever steps exist.
+  els.play.disabled = !playbackOn;
+}
+
 // Manual navigation pauses auto-play (grilled Q4) before moving.
 els.first.addEventListener('click', () => { pausePlayback(); setIdx(0); });
 els.prev.addEventListener('click', () => { pausePlayback(); setIdx(state.idx - 1); });

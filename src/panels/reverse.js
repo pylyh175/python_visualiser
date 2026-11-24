@@ -3,10 +3,9 @@
 import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml, fmtValue } from '../utils.js';
-import { dsaFamily } from '../config.js';
-import { hideOutTabsAll } from './shared.js';
 import { detectTwoPointers, parseArrayValue, resolveDetectedFrame } from './twoPointers.js';
 import { registerPane } from './registry.js';
+import { hideOutputPanes } from './paneController.js';
 
 const REVERSE_VIS_CAP = 30;  // max array elements displayed
 
@@ -15,30 +14,16 @@ const REVERSE_VIS_CAP = 30;  // max array elements displayed
 let lastRenderedStep = -1;
 
 export function renderReversePanel() {
-  const fam = dsaFamily(state.dsaMode);
-  const isReverse = state.dsaMode === 'two-pointers.reverse-array-string';
-  if (fam !== 'two-pointers' || !isReverse) {
-    els.tabReverse.hidden = true;
-    els.reverseBody.hidden = true;
-    return;
-  }
-  // Show the tab family for the reverse sub-mode (same as renderTwoPointersPanel)
-  els.outTabs.hidden = false;
-  els.outTitle.hidden = true;
-  els.tabReverse.hidden = false;
-  // Content first (renderReverse may auto-switch state.outTab / state.idx),
-  // then visibility follows the (possibly updated) state.
+  // Tab/body visibility is owned by paneController; this only renders content.
+  if (state.dsaMode !== 'two-pointers.reverse-array-string') return;
   renderReverse();
-  els.output.hidden = state.outTab !== 'out';
-  els.reverseBody.hidden = state.outTab !== 'reverse';
 }
 
 export function renderReverse() {
-  if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
+  if (!state.steps.length) { hideOutputPanes(state.dsaMode); return; }
 
-  // The one-time tab switch + jump to the first detected step happ
-  // ens in
-  // render() via the pane registry's one-time engage, before the controls are drawn.
+  // The one-time tab switch + jump to the first detected step happens in
+  // render() via paneController's one-time engage, before the controls are drawn.
 
   // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
   // resolve the frame from the TARGET step, not from render history, so a
@@ -46,11 +31,11 @@ export function renderReverse() {
   // Detection-less steps freeze the nearest real frame (flashes suppressed).
   const frame = resolveDetectedFrame(detectTwoPointers, state.idx);
   if (!frame) {
-    state.lastValidFrame = -1;
+    state.panes.lastValidFrame = -1;
     renderReversePanelContent(null);
     return;
   }
-  state.lastValidFrame = frame.frameStep;
+  state.panes.lastValidFrame = frame.frameStep;
   renderReversePanelContent(frame.detection, frame.frameStep, frame.frozen);
 }
 
@@ -132,7 +117,6 @@ registerPane({
   mode: 'two-pointers.reverse-array-string',
   tabId: 'tabReverse',
   bodyId: 'reverseBody',
-  latch: 'reverseAnnounced',
   render: renderReversePanel,
   engage: { detect: detectTwoPointers, tab: 'reverse' },
 });

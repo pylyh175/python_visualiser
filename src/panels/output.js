@@ -4,41 +4,25 @@ import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml } from '../utils.js';
 import { renderEditor } from '../editor/render.js';
-import { ensureStepVisible } from '../navigation/steps.js';
+import { ensureStepVisible, renderStepControls } from '../navigation/steps.js';
 import { dsaFamily } from '../config.js';
 import { renderVars } from './variables.js';
 import { recursionSeenUpTo } from './recursion.js';
 import {
-  activePaneFor, applyPaneVisibility, engageActivePane,
-  resetPaneState, wirePaneTabs,
-} from './registry.js';
-import { hideOutTabsAll } from './shared.js';
-import './panes.js';   // installs every visualiser's registry descriptor
+  engagePanes, renderOutputPanel, syncPaneMode,
+} from './paneController.js';
 
-// Master render: editor mirror, playback controls, all output-panel bodies.
-// State changes come first (mode-change reset, one-time pane engage), so
-// everything drawn below agrees on the same state.idx / state.outTab.
+// Master render: composition only. Pane state changes come first (mode-change
+// reset, one-time pane engage), so everything drawn below agrees on the same
+// state.idx / state.panes.tab.
 export function render() {
-  syncOutFamily();
-  engageActivePane();
+  syncPaneMode();
+  engagePanes();
   renderEditor();
-  const total = state.steps.length;
-  els.stepLabel.textContent = total ? `Step ${state.idx + 1} / ${total}` : 'Step 0 / 0';
-  // Playback controls are live whenever a trace exists — including terminal
-  // states (successful final step, runtime error, limit stop) — so users can
-  // revisit any recorded step; only a real edit resets the run.
-  const playbackOn = state.steps.length > 0;
-  els.first.disabled = els.prev.disabled = (state.idx <= 0 || !playbackOn);
-  els.next.disabled = els.last.disabled = (state.idx >= total - 1 || !playbackOn);
-  els.slider.max = String(Math.max(0, total - 1));
-  els.slider.value = String(state.idx);
-  els.slider.disabled = !playbackOn;
-  // Auto-play obeys the same gating (grilled Q5); while playing the button
-  // reads "⏸ Pause" and stays enabled — playbackOn is true whenever steps exist.
-  els.play.disabled = !playbackOn;
+  renderStepControls();
   renderOutput();
   renderVars();
-  renderOutPanel();
+  renderOutputPanel();
   ensureStepVisible();
 }
 
@@ -93,46 +77,3 @@ export function renderOutput() {
   els.output.innerHTML = text || '<span style="color:#9ca3af">(no output yet)</span>';
   els.output.scrollTop = els.output.scrollHeight;
 }
-
-// Any DSA change (family OR sub-mode) resets the manual tab choice and the
-// one-time announce latches. Idempotent: a no-op while the mode is unchanged.
-function syncOutFamily() {
-  if (state.outFam === state.dsaMode) return;
-  state.outFam = state.dsaMode;
-  state.outTab = 'out'; state.userTab = false;
-  resetPaneState();
-  state.lastValidFrame = -1;   // a frozen frame never bleeds across sub-modes
-}
-
-// The panel shows the active pane registered for the current DSA mode (its
-// descriptor carries the family, exact sub-mode, label, elements and render
-// function). Any DSA change (family OR sub-mode — outFam stores the full id)
-// resets the manual tab choice.
-export function renderOutPanel() {
-  syncOutFamily();
-  const active = activePaneFor(state.dsaMode);
-  if (!state.steps.length || !active) {
-    hideOutTabsAll(state.dsaMode);
-    return;
-  }
-  els.outTabs.hidden = false;
-  els.outTitle.hidden = true;
-  applyPaneVisibility(active);
-  active.render();
-  // Legacy panes may flip state.outTab during their first real render (tree
-  // at the first recursive chain, stack at the first push/pop); re-apply so
-  // the tab bar and bodies agree with the settled state.
-  applyPaneVisibility(active);
-}
-
-// Every pane tab does the same thing: select its outTab, remember that a
-// human chose it, then redraw. Wiring comes from the registry, so a new pane
-// needs no new listener here.
-function selectOutTab(tabId) {
-  state.outTab = tabId;
-  if (state.steps.length) state.userTab = true;   // manual choice sticks until the run resets
-  renderOutPanel();
-}
-
-els.tabOut.addEventListener('click', () => selectOutTab('out'));
-wirePaneTabs((pane) => selectOutTab(pane.id));

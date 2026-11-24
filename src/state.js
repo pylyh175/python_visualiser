@@ -30,19 +30,18 @@ export const state = {
   // Auto-play (navigation/play.js)
   playing: false,         // a playback pass is advancing steps on a timer
 
-  // Output-panel tab family (recursion tree / stack / two-pointers visualisers)
+  // Output-panel tab family (recursion tree / stack / two-pointers visualisers).
+  // Per-run pane state lives in ONE object owned by panels/paneController.js,
+  // so resets and one-time latches never belong to individual panes.
   dsaMode: 'none',        // current DSA id: 'none' | 'recursion' | ... | 'two-pointers.two-sum'
-  outTab: 'out',          // active tab: 'out' | 'tree' | 'stack' | 'two-pointers' | 'reverse' | 'palindrome' | 'container'
-  userTab: false,         // the user picked a tab — keep it for this run
-  treeAnnounced: false,   // the one-time auto-switch to the tree happened
-  stackAnnounced: false,  // the one-time auto-switch to the stack panel
-  twoPointersAnnounced: false, // the one-time auto-advance of the generic two-pointers pane
-  reverseAnnounced: false,// the one-time auto-switch to the reverse panel
-  palindromeAnnounced: false, // the one-time auto-switch to the palindrome panel
-  containerAnnounced: false,  // the one-time auto-switch/advance to the container pane
-  lastValidFrame: -1,     // the step whose algorithm frame rendered last — frozen later when a step doesn't touch it (2026-11-06 persistent-animation design)
+  panes: {
+    mode: null,           // DSA mode the panel rendered last (full id; sub-mode switches reset the tab choice)
+    tab: 'out',           // active tab: 'out' | 'tree' | 'stack' | 'two-pointers' | 'reverse' | 'palindrome' | 'container'
+    userSelected: false,  // the user picked a tab — keep it for this run
+    announced: {},        // pane id -> its one-time auto-switch/engage already happened
+    lastValidFrame: -1,   // the step whose algorithm frame rendered last — frozen later when a step doesn't touch it (2026-11-06 persistent-animation design)
+  },
   stackScan: null,        // scanStackSource() result for the running code
-  outFam: null,           // which DSA mode the panel rendered last (full id; sub-mode switches also reset the tab choice)
 
   // Editor mirror / caret / glide internals
   mirrorSpacer: null,     // hidden element keeping the mirror as scrollable as the textarea

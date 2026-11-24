@@ -4,7 +4,7 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { syncVisualizeEnabled, applyLock } from './lock.js';
 import { render } from './panels/output.js';
-import { resetPaneState } from './panels/registry.js';
+import { resetPaneRun } from './panels/paneController.js';
 import { resetContainerScale } from './panels/container.js';
 import { scanStackSource } from './panels/stack.js';
 import { cancelStepGlide, scrollToLine } from './navigation/steps.js';
@@ -22,9 +22,7 @@ export function resetRun() {
   state.stoppedRun = false;
   state.idx = 0;
   state.programOutput = '';
-  state.outTab = 'out'; state.userTab = false;
-  resetPaneState();
-  state.lastValidFrame = -1;
+  resetPaneRun();
   state.stackScan = null;
   render();
 }

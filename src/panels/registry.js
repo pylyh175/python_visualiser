@@ -5,21 +5,21 @@
      1. create the pane module and call registerPane({...}) in it;
      2. add that module's import to panes.js (the barrel).
 
-   output.js, shared.js, runner.js, dom.js and index.html never enumerate
-   panes again: this registry owns tab/body creation, visibility, click
-   wiring, latch resets and the one-time engage scan.
+   output.js, paneController.js, runner.js, dom.js and index.html never
+   enumerate panes again: this registry owns tab/body creation, visibility and
+   click wiring. Per-run state (tab choice, announce latches, engage) belongs
+   to paneController.js.
 
    Descriptor fields:
-     id      unique value stored in state.outTab (e.g. 'tree')
+     id      unique value stored in state.panes.tab (e.g. 'tree')
      label   tab caption; used when the tab element is created on demand
      family  DSA family that owns the pane (see config.dsaFamily)
      mode    optional exact DSA id; omitted = the family's default pane
      tabId   existing tab element id (default 'tab-<id>')
      bodyId  existing body element id (default 'body-<id>')
-     latch   state field for the one-time auto-engage (optional)
      render  draws the pane body; tab/body visibility is handled here
-     engage  optional { detect, tab } — jump once to the first step the
-             detector recognizes, switching to `tab` when given
+     engage  optional { detect, tab } — paneController jumps once to the
+             first step the detector recognizes, switching to `tab` when given
 */
 
 import { state } from '../state.js';
@@ -28,7 +28,7 @@ import { dsaFamily } from '../config.js';
 
 const PANES = [];
 const REFS = new Map();   // pane id -> { tab, body } (resolved/created once)
-let selectHandler = null; // installed by output.js; late registrations wire too
+let selectHandler = null; // installed by paneController.js; late registrations wire too
 
 export { PANES };
 
@@ -100,14 +100,6 @@ export function paneRefs(pane) {
   return refs;
 }
 
-// Clear every pane's one-time engage latch. Runtime-created keys mean a new
-// pane needs no state.js edit.
-export function resetPaneState() {
-  for (const pane of PANES) {
-    if (pane.latch) state[pane.latch] = false;
-  }
-}
-
 // Plain output: no tab bar, no algorithm body.
 export function hideAllPanes() {
   els.output.hidden = false;
@@ -120,43 +112,18 @@ export function hideAllPanes() {
   }
 }
 
-// Show only the active pane's tab, and its body only while state.outTab
+// Show only the active pane's tab, and its body only while state.panes.tab
 // selects it. Called before AND after the renderer (legacy tree/stack panes
-// may switch outTab during their first render).
+// may announce a tab switch during their first render).
 export function applyPaneVisibility(active) {
-  els.tabOut.classList.toggle('active', state.outTab === 'out');
-  els.output.hidden = state.outTab !== 'out';
+  const selectedTab = state.panes.tab;
+  els.tabOut.classList.toggle('active', selectedTab === 'out');
+  els.output.hidden = selectedTab !== 'out';
   for (const pane of PANES) {
     const { tab, body } = paneRefs(pane);
-    const selected = pane === active && state.outTab === pane.id;
+    const selected = pane === active && selectedTab === pane.id;
     tab.hidden = pane !== active;
     tab.classList.toggle('active', selected);
     body.hidden = !selected;
   }
-}
-
-// One-time engage before a render: jump to the first step the detector
-// recognizes and, for sub-mode panes, switch to the pane's tab.
-export function engageActivePane(mode = state.dsaMode) {
-  const pane = activePaneFor(mode);
-  if (!pane || !pane.engage) return;
-  engagePane(pane.engage.detect, pane.latch, pane.engage.tab || null);
-}
-
-function engagePane(detect, latchKey, tab) {
-  if (!state.steps.length || state.userTab || state[latchKey]) return;
-  // Terminal runs must stay on their last step: runner.js puts a runtime error
-  // or limit stop there, and renderOutput() only prints that message at the
-  // final index. Consume the latch without jumping so later navigation in
-  // this run is not hijacked by a pending engage (2026-11-23 fix).
-  if (state.programError || state.stoppedRun) {
-    state[latchKey] = true;
-    return;
-  }
-  const hit = (i) => detect(state.steps[i]?.locals || {});
-  const at = hit(state.idx) ? state.idx : state.steps.findIndex((_, i) => hit(i));
-  if (at < 0) return;
-  state.idx = at;
-  state[latchKey] = true;
-  if (tab) state.outTab = tab;
 }

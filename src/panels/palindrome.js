@@ -5,10 +5,9 @@
 import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml } from '../utils.js';
-import { dsaFamily } from '../config.js';
-import { hideOutTabsAll } from './shared.js';
 import { PTR_NAME_PAIRS, resolveDetectedFrame } from './twoPointers.js';
 import { registerPane } from './registry.js';
+import { hideOutputPanes } from './paneController.js';
 
 const PAL_VIS_FULL = 40;   // strings up to this length render UNSPLIT
 const PAL_WINDOW_HALF = 6; // windowed strings: 12 cells per window
@@ -79,28 +78,16 @@ function callFacts(steps) {
 }
 
 export function renderPalindromePanel() {
-  const fam = dsaFamily(state.dsaMode);
-  const isPalindrome = state.dsaMode === 'two-pointers.valid-palindrome';
-  if (fam !== 'two-pointers' || !isPalindrome) {
-    els.tabPalindrome.hidden = true;
-    els.palindromeBody.hidden = true;
-    return;
-  }
-  els.outTabs.hidden = false;
-  els.outTitle.hidden = true;
-  els.tabPalindrome.hidden = false;
-  // Content first (renderPalindrome may auto-switch state.outTab / state.idx),
-  // then visibility follows the (possibly updated) state.
+  // Tab/body visibility is owned by paneController; this only renders content.
+  if (state.dsaMode !== 'two-pointers.valid-palindrome') return;
   renderPalindrome();
-  els.output.hidden = state.outTab !== 'out';
-  els.palindromeBody.hidden = state.outTab !== 'palindrome';
 }
 
 export function renderPalindrome() {
-  if (!state.steps.length) { hideOutTabsAll(state.dsaMode); return; }
+  if (!state.steps.length) { hideOutputPanes(state.dsaMode); return; }
 
   // The one-time tab switch + jump to the first detected step happens in
-  // render() via the pane registry's one-time engage, before the controls are drawn.
+  // render() via paneController's one-time engage, before the controls are drawn.
 
   // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
   // resolve the frame from the TARGET step, not from render history, so a
@@ -108,11 +95,11 @@ export function renderPalindrome() {
   // Detection-less steps freeze the nearest real frame (flashes suppressed).
   const frame = resolveDetectedFrame(detectPalindrome, state.idx);
   if (!frame) {
-    state.lastValidFrame = -1;
+    state.panes.lastValidFrame = -1;
     renderPalindromePanelContent(null);
     return;
   }
-  state.lastValidFrame = frame.frameStep;
+  state.panes.lastValidFrame = frame.frameStep;
   renderPalindromePanelContent(frame.detection, frame.frameStep, frame.frozen);
 }
 
@@ -234,7 +221,6 @@ registerPane({
   mode: 'two-pointers.valid-palindrome',
   tabId: 'tabPalindrome',
   bodyId: 'palindromeBody',
-  latch: 'palindromeAnnounced',
   render: renderPalindromePanel,
   engage: { detect: detectPalindrome, tab: 'palindrome' },
 });
