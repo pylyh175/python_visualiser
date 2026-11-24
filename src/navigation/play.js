@@ -14,8 +14,8 @@ let timer = null;
 let speed = PLAY_DEFAULT_SPEED;   // session-only; resets to Normal per load
 
 function setButton() {
-  els.play.textContent = state.playing ? '⏸<span class="bt"> Pause</span>' : '⏵<span class="bt"> Play</span>';
-  els.play.setAttribute('aria-label', state.playing ? 'Pause' : 'Play')
+  els.play.textContent = state.playing ? '⏸ Pause' : '⏵ Play';
+  els.play.setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
 }
 
 // Schedule the next tick with the CURRENT speed (re-reading it each tick is
