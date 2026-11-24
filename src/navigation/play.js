@@ -70,8 +70,9 @@ els.play.addEventListener('click', togglePlayback);
 els.playSpeed.addEventListener('change', () => {
   const v = els.playSpeed.value;
   speed = v in PLAY_SPEEDS ? v : PLAY_DEFAULT_SPEED;
+  state.playSpeed = speed;    // visualiser panes scale their animation length to it
   els.playSpeed.title = `${PLAY_SPEEDS[speed]} ms per step`;
-  // Live effect (grilled Q9): re-arm so even the currently pending step uses
+  // Live effect: re-arm so even the currently pending step uses
   // the new delay; when paused this is a no-op beyond storing the speed.
   if (state.playing) { clearTimeout(timer); arm(); }
 });

@@ -21,6 +21,16 @@ export function setIdx(n) {
   render();
 }
 
+// Visualiser panes request a jump (e.g. clicking a recursion-tree node)
+// through an event, so they never import this module back. A jump is
+// manual navigation: it pauses auto-play like Prev/Next do.
+document.addEventListener('viz:goto', (e) => {
+  const n = Number(e.detail);
+  if(!state.steps.length || !Number.isFinite(n)) return;
+  pausePlayback();
+  setIdx(n);
+})
+
 // The mirror row element for a 1-based line number (rows are children in
 // order; the hidden spacer is last).
 export function rowAt(line) {
