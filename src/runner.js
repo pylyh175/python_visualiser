@@ -4,9 +4,10 @@ import { state } from './state.js';
 import { els } from './dom.js';
 import { syncVisualizeEnabled, applyLock } from './lock.js';
 import { render } from './panels/output.js';
-import { resetPaneRun } from './panels/paneController.js';
 import { resetContainerScale } from './panels/container.js';
 import { scanStackSource } from './panels/stack.js';
+import { scanPointerHints } from './panels/pointerLogic.js';
+import { clearDetectCache } from './panels/twoPointers.js';
 import { cancelStepGlide, scrollToLine } from './navigation/steps.js';
 import { stopPlayback } from './navigation/play.js';
 import { neededDsPackages } from './config.js';
@@ -22,8 +23,16 @@ export function resetRun() {
   state.stoppedRun = false;
   state.idx = 0;
   state.programOutput = '';
-  resetPaneRun();
+  state.outTab = 'out'; state.userTab = false;
+  state.treeAnnounced = false; state.stackAnnounced = false;
+  state.twoPointersAnnounced = false;
+  state.reverseAnnounced = false;
+  state.palindromeAnnounced = false;
+  state.containerAnnounced = false;
+  state.lastValidFrame = -1;
   state.stackScan = null;
+  state.pointerHints = null;
+  clearDetectCache();
   render();
 }
 
@@ -44,6 +53,9 @@ els.visualize.addEventListener('click', async () => {
   // Stack detection pinned to the exact code being executed (see
   // 2026-11-03-stack-visualiser-design.md).
   state.stackScan = scanStackSource(code);
+  // Which names index which sequence (2026-11-24): the two-pointer detector
+  // prefers real indices of the array over any two ints that fit its range.
+  state.pointerHints = scanPointerHints(code);
   state.runInProgress = true;
   state.locked = true;
   syncVisualizeEnabled();

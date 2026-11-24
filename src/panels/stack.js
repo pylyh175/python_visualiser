@@ -4,8 +4,7 @@ import { state } from '../state.js';
 import { els } from '../dom.js';
 import { STACK_VIS_CAP, STACK_CONTRACT } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
-import { registerPane } from './registry.js';
-import { announceOnce, hideOutputPanes } from './paneController.js';
+import { hideOutTabsAll } from './shared.js';
 
 // Lightweight text scan of the editor source (block parser; no AST library).
 // Multi-line def headers and param defaults ending in a tuple degrade
@@ -304,7 +303,7 @@ function renderStackMulti(figs, det) {
     }
 
     const strip = [`size: ${size}${hiddenMore > 0 ? ' (tracer-capped)' : ''}`,
-      size === 0 ? '(empty)' : 'has items'];
+    size === 0 ? '(empty)' : 'has items'];
     if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
 
     return `<div class="sfig">`
@@ -320,7 +319,9 @@ function renderStackMulti(figs, det) {
 
 export function renderStack() {
   const det = state.stackScan;
-  if (!det || !det.found) { hideOutputPanes(state.dsaMode); return; }
+  if (!det || !det.found) { hideOutTabsAll(state.dsaMode); return; }
+  els.outTabs.hidden = false;
+  els.outTitle.hidden = true;
 
   // Still collect ops for animation triggers (push/pop enter/leave)
   const recs = collectStackOps(state.idx, det);
@@ -387,10 +388,17 @@ export function renderStack() {
   const leavingId = (prevTopId !== null && prevTopId !== currTopId) ? prevTopId : null;
 
   // Auto-switch at the first push/pop (like the tree's auto-switch at the
-  // first recursive chain); a manual tab choice stays sticky (userSelected).
+  // first recursive chain); a manual tab choice stays sticky (userTab).
   const opsSeen = [...recs.values()].some((r) => r.key === 'push' || r.key === 'pop');
-  announceOnce('stack', opsSeen);
-  if (state.panes.tab !== 'stack') return;
+  if (!state.userTab && !state.stackAnnounced && opsSeen) {
+    state.stackAnnounced = true;
+    state.outTab = 'stack';
+  }
+  els.tabOut.classList.toggle('active', state.outTab === 'out');
+  els.tabStack.classList.toggle('active', state.outTab === 'stack');
+  els.output.hidden = state.outTab !== 'out';
+  els.stackBody.hidden = state.outTab !== 'stack';
+  if (state.outTab !== 'stack') return;
 
   // Multi-instance: more than one instance of the tracked class draws as its
   // own figure (2026-11-05 design, grilled Q3–Q7). Identity comes from the
@@ -404,7 +412,7 @@ export function renderStack() {
   // stack); the newest item lands directly on top — LIFO.
   const size = totalSize;
   const strip = ['size: ' + size + (hiddenMore > 0 ? ' (tracer-capped)' : ''),
-    size === 0 ? '(empty)' : 'has items'];
+  size === 0 ? '(empty)' : 'has items'];
   if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
   if (inits > 1) strip.push(`${inits} Stack instances — ops combined in call order`);
 
@@ -443,12 +451,3 @@ export function renderStack() {
     `<div class="sstack">${slotHtml.join('\n')}</div>`;
   els.stackBody.scrollTop = 0;
 }
-
-registerPane({
-  id: 'stack',
-  label: 'Stack',
-  family: 'stack',
-  tabId: 'tabStack',
-  bodyId: 'stackBody',
-  render: renderStack,
-});

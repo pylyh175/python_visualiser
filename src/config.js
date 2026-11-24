@@ -147,42 +147,49 @@ export const HINT_DEFAULT = 'Type or paste Python code, then click Visualize.';
 // folder): their sub-modes keep their own unsuffixed ids ('stack', …) so every
 // family check / visualiser gate keeps working unchanged.
 export const DSA_MODES = [
-  { id: 'none',         label: '(none / normal run)', status: 'ready' },
-  { id: 'recursion',    label: 'Recursion',           status: 'ready' },
-  { id: 'two-pointers', label: 'Two Pointers',        status: 'ready', subModes: [
-    { id: 'two-pointers.remove-duplicate', label: 'Remove Duplicate' },
-    { id: 'two-pointers.two-sum',          label: 'Two Sum' },
-    { id: 'two-pointers.reverse-array-string'   , label: 'Reverse Array/String'},
-    { id: 'two-pointers.valid-palindrome', label: 'Valid Palindrome'},
-    { id: 'two-pointers.container-with-most-water',  label: 'Container With Most Water' }
-  ] },
-  { id: 'sliding-window', label: 'Sliding Window',    status: 'planned', subModes: [
-    { id: 'sliding-window.find-k-closest-elements', label: 'Find K Closest Elements' },
-    { id: 'sliding-window.lz77', label: 'LZ77' }
-  ] },
-  { id: 'dynamic-programming', label: 'Dynamic Programming',   status: 'planned', subModes: [
-    { id: 'dynamic-programming.coins-change', label: 'Coins Change' },
-    { id: 'dynamic-programming.unbounded-knapsack', label: 'Unbounded Knapsack' },
-    { id: 'dynamic-programming.0-1-knapsack', label: '0/1 Knapsack' },
-    { id: 'dynamic-programming.edit-distance', label: 'Edit Distance' }
-  ]
-   },
-  { id: 'dsa',          label: 'DSA', folder: true,   status: 'ready', subModes: [
-    { id: 'stack',       label: 'Stack',       status: 'ready' },
-    { id: 'queue',       label: 'Queue',       status: 'planned' },
-    { id: 'circular queue', label: 'Circular Queue', status: 'planned'},
-    { id: 'linked-list', label: 'Linked List', status: 'planned' },
-    { id: 'hash-table',  label: 'Hash Table', status: 'planned' },
-    { id: 'binary-tree', label: 'Binary Tree', status: 'planned' },
-    { id: 'binary-search-tree', label: 'Binary Search Tree(BST)', status: 'planned' },
-    { id: 'avl-tree', label: 'AVL Tree', status: 'planned' },
-    { id: 'red-black-tree', label: 'Red Black Tree', status: 'planned' },
-    { id: 'b-tree', label: 'B-Tree', status: 'planned' },
-    { id: 'trie', label: 'Trie', status: 'planned' },
-    { id: 'suffix-tree', label: 'Suffix Tree', status: 'planned' },
-    { id: 'binary-heap', label: 'Binary Heap', status: 'planned' },
-    { id: 'fibonacci-heap', label: 'Fibonacci Heap', status: 'planned' }
-  ] }
+  { id: 'none', label: '(none / normal run)', status: 'ready' },
+  { id: 'recursion', label: 'Recursion', status: 'ready' },
+  {
+    id: 'two-pointers', label: 'Two Pointers', status: 'ready', subModes: [
+      { id: 'two-pointers.remove-duplicate', label: 'Remove Duplicate' },
+      { id: 'two-pointers.two-sum', label: 'Two Sum' },
+      { id: 'two-pointers.reverse-array-string', label: 'Reverse Array/String' },
+      { id: 'two-pointers.valid-palindrome', label: 'Valid Palindrome' },
+      { id: 'two-pointers.container-with-most-water', label: 'Container With Most Water' }
+    ]
+  },
+  {
+    id: 'sliding-window', label: 'Sliding Window', status: 'planned', subModes: [
+      { id: 'sliding-window.find-k-closest-elements', label: 'Find K Closest Elements' },
+      { id: 'sliding-window.lz77', label: 'LZ77' }
+    ]
+  },
+  {
+    id: 'dynamic-programming', label: 'Dynamic Programming', status: 'planned', subModes: [
+      { id: 'dynamic-programming.coins-change', label: 'Coins Change' },
+      { id: 'dynamic-programming.unbounded-knapsack', label: 'Unbounded Knapsack' },
+      { id: 'dynamic-programming.0-1-knapsack', label: '0/1 Knapsack' },
+      { id: 'dynamic-programming.edit-distance', label: 'Edit Distance' }
+    ]
+  },
+  {
+    id: 'dsa', label: 'DSA', folder: true, status: 'ready', subModes: [
+      { id: 'stack', label: 'Stack', status: 'ready' },
+      { id: 'queue', label: 'Queue', status: 'planned' },
+      { id: 'circular queue', label: 'Circular Queue', status: 'planned' },
+      { id: 'linked-list', label: 'Linked List', status: 'planned' },
+      { id: 'hash-table', label: 'Hash Table', status: 'planned' },
+      { id: 'binary-tree', label: 'Binary Tree', status: 'planned' },
+      { id: 'binary-search-tree', label: 'Binary Search Tree(BST)', status: 'planned' },
+      { id: 'avl-tree', label: 'AVL Tree', status: 'planned' },
+      { id: 'red-black-tree', label: 'Red Black Tree', status: 'planned' },
+      { id: 'b-tree', label: 'B-Tree', status: 'planned' },
+      { id: 'trie', label: 'Trie', status: 'planned' },
+      { id: 'suffix-tree', label: 'Suffix Tree', status: 'planned' },
+      { id: 'binary-heap', label: 'Binary Heap', status: 'planned' },
+      { id: 'fibonacci-heap', label: 'Fibonacci Heap', status: 'planned' }
+    ]
+  }
 ];
 export const DSA_STORE_KEY = 'vizDsaMode';
 
@@ -208,6 +215,7 @@ export function dsaFamily(id = 'none') {
 
 // ── Recursion tree ──
 export const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary row
+export const TREE_SVG_CAP = 250;
 
 // ── Stack visualiser (2026-11-03-stack-visualiser-design.md) ──
 // Minimum slot count: a figure with ≤ this many items always draws exactly
@@ -220,12 +228,12 @@ export const STACK_VIS_CAP = 8;
 // frame, its visual never appears. Each method is recorded with the def's
 // LINE NUMBER, which matches the runner's per-frame `sig` (= co_firstlineno).
 export const STACK_CONTRACT = [
-  { key: 'push',  names: ['push'] },
-  { key: 'pop',   names: ['pop'] },
-  { key: 'peek',  names: ['peek', 'top'] },
-  { key: 'init',  names: ['__init__'] },
+  { key: 'push', names: ['push'] },
+  { key: 'pop', names: ['pop'] },
+  { key: 'peek', names: ['peek', 'top'] },
+  { key: 'init', names: ['__init__'] },
   { key: 'empty', names: ['is_empty', 'isEmpty', '__bool__'] },
-  { key: 'size',  names: ['size', 'length', '__len__'] },
+  { key: 'size', names: ['size', 'length', '__len__'] },
 ];
 
 // ── Editor indentation ──
@@ -237,7 +245,7 @@ export const COMPOUND_KW = /^(?:\s*)(?:async\s+)?(?:if|elif|else|for|while|try|e
 
 // ── Step auto-scroll (navigation/steps.js) ──
 export const STEP_MARGIN = 22;        // px of breathing room so a tracked line never
-                                      // glues to the viewport edge
+// glues to the viewport edge
 export const STEP_ANIM_MS = 150;      // glide time for automatic step adjustments
 
 // ── Auto-play (navigation/play.js, 2026-11-15, grilled Q1–Q12) ──
