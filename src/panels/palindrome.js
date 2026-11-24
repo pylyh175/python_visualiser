@@ -1,71 +1,52 @@
 /* ═══════════════ Valid Palindrome tab (two-pointers sub-mode) ═══════════════
-   Mirrors reverse.js (2026-11-05-valid-palindrome-submode-design.md): id-keyed
-   tab, ground-truth-only animation, strobe-guarded flash, honest failure. */
+   2026-11-05-valid-palindrome-submode-design.md: id-keyed tab, ground-truth
+   only, strobe-guarded flash, honest failure. 2026-11-24: shared kit —
+   sliding markers, verified region, captions for skips / matches, labels
+   use the code's own names (was a hard-coded "s[left] vs s[right]"). */
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml } from '../utils.js';
-import { PTR_NAME_PAIRS, resolveDetectedFrame } from './twoPointers.js';
-import { registerPane } from './registry.js';
-import { hideOutputPanes } from './paneController.js';
+import { dsaFamily } from '../config.js';
+import { detectSequencePointers, pointerRoles } from './pointerLogic.js';
+import { syncCells, placeMarkers, cellAt, flash, ptrChip, setCaption, setLegend } from './pointerKit.js';
+import { PTR_NAME_PAIRS, renderPointerPane, frozenCaption, describeMoves } from './twoPointers.js';
+
+export { PTR_NAME_PAIRS };
 
 const PAL_VIS_FULL = 40;   // strings up to this length render UNSPLIT
 const PAL_WINDOW_HALF = 6; // windowed strings: 12 cells per window
 const INDEX_CAP = 500;     // defensive parity with the runner's string cap
 
-// Which step was rendered last — the mismatch pulse fires only when a
-// DIFFERENT step is drawn (same strobe guard as reverse.js's swap flash).
-let lastRenderedStep = -1;
-
-// Detect a palindrome-check pattern: a string local with two pointer-like
-// int index vars (same naming pairs as the generic two-pointers detector).
-// Strings fall through detectTwoPointers (JS strings aren't array-likes),
-// so per the design this helper lives here rather than forking twoPointers.
-// Returns { sName, sValue, leftName, rightName, leftIdx, rightIdx } or null.
+// A string local with two pointer-like int index vars (same naming pairs
+// and index hints as the array detector). Returns the shared detection
+// shape { arrName, arrValue, leftName, rightName, leftIdx, rightIdx } | null.
 export function detectPalindrome(locals) {
-  const entries = Object.entries(locals || {});
-  const strings = entries.filter(([_, v]) => typeof v === 'string' && v.length > 0 && v.length <= INDEX_CAP);
-  if (strings.length === 0) return null;
-  for (const [sName, sVal] of strings) {
-    const len = sVal.length;
-    const indexVars = entries.filter(([name, v]) =>
-      typeof v === 'number' && Number.isInteger(v) && v >= -len && v < len);
-    for (const [a, b] of PTR_NAME_PAIRS) {
-      const leftE = indexVars.find(([n]) => n === a);
-      const rightE = indexVars.find(([n]) => n === b);
-      if (leftE && rightE) {
-        return {
-          sName, sValue: sVal,
-          leftName: a, rightName: b,
-          leftIdx: leftE[1], rightIdx: rightE[1],
-        };
-      }
-    }
-  }
-  return null;
+  return detectSequencePointers(locals, {
+    kind: 'string', hints: state.pointerHints, pin: state.pointerPin, maxStrLen: INDEX_CAP,
+  });
 }
 
-// Comparison state for the current step, recomputed from the recorded values
-// only (grilled follow-up: skip-test steps must NOT read as mismatches):
-//   'none'  — pointer out of range
-//   'skip'  — a pointer sits on a non-alphanumeric: the code is SKIPPING,
-//             not comparing — neutral, never flash
-//   'match' — both alphanumeric, equal case-insensitively (green =)
-//   'diff'  — both alphanumeric, different (factual neutral ≠ — the verdict
-//             flash below is return-gated, so this never claims a verdict)
-function compareState(sVal, leftIdx, rightIdx) {
-  if (leftIdx < 0 || rightIdx < 0 || leftIdx >= sVal.length || rightIdx >= sVal.length) return 'none';
-  const alnum = (ch) => /[a-z0-9]/i.test(ch);
-  if (!alnum(sVal[leftIdx]) || !alnum(sVal[rightIdx])) return 'skip';
-  return sVal[leftIdx].toLowerCase() === sVal[rightIdx].toLowerCase() ? 'match' : 'diff';
+const isAlnum = (ch) => /[a-z0-9]/i.test(ch || '');
+// Display form of one character: whitespace is invisible in a cell or a
+// caption, so it reads as an explicit symbol (display only — values untouched).
+const shown = (ch) => (ch === ' ' ? '␣' : ch === '\t' ? '⇥' : ch === '\n' ? '↵' : ch);
+
+// Comparison state recomputed from the recorded values only:
+//   'none' — pointer out of range · 'skip' — a pointer is on a
+//   non-alphanumeric (the code is skipping, not comparing) · 'match' /
+//   'diff' — both alphanumeric, equal / different case-insensitively.
+function compareState(sVal, l, r) {
+  if (l < 0 || r < 0 || l >= sVal.length || r >= sVal.length) return 'none';
+  if (!isAlnum(sVal[l]) || !isAlnum(sVal[r])) return 'skip';
+  return sVal[l].toLowerCase() === sVal[r].toLowerCase() ? 'match' : 'diff';
 }
 
-// Whole-trace lookups over RECORDED facts only (no source parsing; precedent:
-// recursion.js whole-run verdicts). verdicts: runner's return records keyed by
-// frame id ({id, value} entries carried on the parent's next recorded step).
-// lastInCall: each call frame's last recorded step — for a call that returned
-// false, its left/right THERE is the terminating pair.
+// Whole-trace facts (cached per run): each call's recorded return value
+// and its last recorded step (where a False call's terminating pair sits).
+let factsCache = { steps: null, facts: null };
 function callFacts(steps) {
+  if (factsCache.steps === steps) return factsCache.facts;
   const verdicts = new Map();
   const lastInCall = new Map();
   for (let i = 0; i < steps.length; i++) {
@@ -74,153 +55,156 @@ function callFacts(steps) {
     const top = stack[stack.length - 1];
     if (top && top.fn && top.fn !== '<module>') lastInCall.set(top.id, i);
   }
-  return { verdicts, lastInCall };
+  factsCache = { steps, facts: { verdicts, lastInCall } };
+  return factsCache.facts;
 }
 
 export function renderPalindromePanel() {
-  // Tab/body visibility is owned by paneController; this only renders content.
-  if (state.dsaMode !== 'two-pointers.valid-palindrome') return;
+  const fam = dsaFamily(state.dsaMode);
+  const isPalindrome = state.dsaMode === 'two-pointers.valid-palindrome';
+  if (fam !== 'two-pointers' || !isPalindrome) {
+    els.tabPalindrome.hidden = true;
+    els.palindromeBody.hidden = true;
+    return;
+  }
+  els.outTabs.hidden = false;
+  els.outTitle.hidden = true;
+  els.tabPalindrome.hidden = false;
+  els.output.hidden = state.outTab !== 'out';
+  els.palindromeBody.hidden = state.outTab !== 'palindrome';
   renderPalindrome();
 }
 
 export function renderPalindrome() {
-  if (!state.steps.length) { hideOutputPanes(state.dsaMode); return; }
-
-  // The one-time tab switch + jump to the first detected step happens in
-  // render() via paneController's one-time engage, before the controls are drawn.
-
-  // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
-  // resolve the frame from the TARGET step, not from render history, so a
-  // direct Last/First jump lands on the same frame as stepping there.
-  // Detection-less steps freeze the nearest real frame (flashes suppressed).
-  const frame = resolveDetectedFrame(detectPalindrome, state.idx);
-  if (!frame) {
-    state.panes.lastValidFrame = -1;
-    renderPalindromePanelContent(null);
-    return;
-  }
-  state.panes.lastValidFrame = frame.frameStep;
-  renderPalindromePanelContent(frame.detection, frame.frameStep, frame.frozen);
+  renderPointerPane(els.palindromeBody, {
+    detect: detectPalindrome,
+    kind: 'string',
+    empty: ['No palindrome-check pattern detected — needs two pointers moving over a string.', 'Use Prev/Next to navigate.'],
+    build: buildPalindrome,
+  });
 }
 
-// Renders the current step's palindrome visual into els.palindromeBody.
-// Ground truth only: s and pointers come verbatim from the tracer snapshots.
-// (detection, frameStep, frozen): a frozen render re-draws the remembered
-// frame — the verdict/terminating-pair facts come from ITS call (Q4), with
-// the mismatch flash suppressed (a frozen re-render is never a new event).
-function renderPalindromePanelContent(detection, frameStep = state.idx, frozen = false) {
-  if (!detection) {
-    els.palindromeBody.innerHTML = `
-      <div class="tp-strip">No palindrome-check pattern detected — needs two pointers moving over a sequence.</div>
-      <div class="tp-empty">Use Prev/Next to navigate.</div>
-    `;
-    lastRenderedStep = -1;
-    return;
-  }
+function buildPalindrome(ctx) {
+  const { v, det, frame, prev } = ctx;
+  const s = det.arrValue;
+  const sName = det.arrName, lName = det.leftName, rName = det.rightName;
+  const l = det.leftIdx, r = det.rightIdx;
+  const len = s.length;
+  const cmp = compareState(s, l, r);
+  const [roleL, roleR] = pointerRoles(lName, rName);
 
-  const { sName, sValue, leftName, rightName, leftIdx, rightIdx } = detection;
-  const len = sValue.length;
-  const cmp = compareState(sValue, leftIdx, rightIdx);
-
-  // The frame step's call facts — recorded verdict + terminating pair for
-  // False calls (grilled follow-up: the flash is return-gated, never the raw
-  // value comparison). Q4: the frozen frame reads ITS OWN step's stack.
+  // The frame step's call facts — recorded verdict + terminating pair.
   const { verdicts, lastInCall } = callFacts(state.steps);
-  const stack = state.steps[frameStep].stack || [];
+  const stack = state.steps[frame.frameStep].stack || [];
   const top = stack[stack.length - 1];
   const fid = top && top.fn && top.fn !== '<module>' ? top.id : null;
   const verdict = fid != null ? verdicts.get(fid) : undefined;
   let termPair = null;
   if (verdict === false) {
     const lastIdx = lastInCall.get(fid);
-    if (lastIdx != null) {
-      const lastLocals = state.steps[lastIdx].locals || {};
-      if (typeof lastLocals[leftName] === 'number' && typeof lastLocals[rightName] === 'number') {
-        termPair = [lastLocals[leftName], lastLocals[rightName]];
-      }
+    const lastLocals = lastIdx != null ? state.steps[lastIdx].locals || {} : {};
+    if (typeof lastLocals[lName] === 'number' && typeof lastLocals[rName] === 'number') {
+      termPair = [lastLocals[lName], lastLocals[rName]];
     }
   }
+  const atTerm = verdict === false && termPair != null && l === termPair[0] && r === termPair[1];
 
   // Layout: whole string when short; otherwise two windows around the
-  // pointers, merged when they overlap, with a hide-label between (grilled Q4).
+  // pointers, merged when they overlap, with a hide-label between.
+  const cl = Math.max(0, Math.min(len - 1, l)), cr = Math.max(0, Math.min(len - 1, r));
   const bands = [];
   if (len <= PAL_VIS_FULL) {
     bands.push([0, len]);
   } else {
-    const lEnd = Math.min(len, leftIdx + PAL_WINDOW_HALF + 1);
-    const lStart = Math.max(0, Math.min(leftIdx, lEnd - 1) - PAL_WINDOW_HALF);
-    const rEnd = Math.min(len, rightIdx + PAL_WINDOW_HALF + 1);
-    const rStart = Math.max(0, Math.min(rightIdx, rEnd - 1) - PAL_WINDOW_HALF);
-    if (rStart <= lEnd) {
-      bands.push([Math.min(lStart, rStart), Math.max(lEnd, rEnd)]);
-    } else {
-      bands.push([lStart, lEnd], [rStart, rEnd]);
-    }
+    const lEnd = Math.min(len, cl + PAL_WINDOW_HALF + 1);
+    const lStart = Math.max(0, Math.min(cl, lEnd - 1) - PAL_WINDOW_HALF);
+    const rEnd = Math.min(len, cr + PAL_WINDOW_HALF + 1);
+    const rStart = Math.max(0, Math.min(cr, rEnd - 1) - PAL_WINDOW_HALF);
+    if (rStart <= lEnd) bands.push([Math.min(lStart, rStart), Math.max(lEnd, rEnd)]);
+    else bands.push([lStart, lEnd], [rStart, rEnd]);
   }
 
-  // Mismatch flash, RETURN-GATED: only the terminating pair of a call whose
-  // false verdict the runner recorded — plus the strobe guard as in reverse.js.
-  // A frozen re-render is never a new event (persistent-animation design Q1).
-  const strobe = state.idx !== lastRenderedStep;
-  lastRenderedStep = state.idx;
-  const flash = !frozen && strobe && verdict === false && termPair != null
-    && leftIdx === termPair[0] && rightIdx === termPair[1];
-
-  const isAlnum = (ch) => /[a-z0-9]/i.test(ch);   // value-derived presentation
-  const cellHtml = (i) => {
-    const ch = sValue[i];
-    const cls = ['tp-cell'];
-    if (i === leftIdx && i === rightIdx) cls.push('tp-both');
-    else if (i === leftIdx) cls.push('tp-left');
-    else if (i === rightIdx) cls.push('tp-right');
-    if (!isAlnum(ch)) cls.push('pal-dim');
-    if (flash && (i === leftIdx || i === rightIdx)) cls.push('tp-swap');
-    return `<div class="${cls.join(' ')}" data-idx="${i}">${escapeHtml(ch)}</div>`;
+  const met = l >= r;
+  const ptrCls = (i) => {
+    const c = [];
+    if (i === l) c.push(`tp-at-${roleL}`);
+    if (i === r) c.push(`tp-at-${roleR}`);
+    if (i === l && i === r) c.push('tp-both');
+    return c;
   };
-
-  let strip = '';
+  const specs = [];
+  if (bands[0][0] === 0 && (l === -1 || r === -1)) {
+    specs.push({ key: 'ghost-lo', idx: -1, text: '', cls: ['tp-cell', 'tp-ghost', ...ptrCls(-1)].join(' ') });
+  }
   bands.forEach(([start, end], b) => {
     if (b > 0) {
-      strip += `<div class="pal-gap">… ${(start - bands[b - 1][1]).toLocaleString()} chars hidden …</div>`;
+      specs.push({ key: `gap${b}`, text: `… ${(start - bands[b - 1][1]).toLocaleString()} chars hidden …`, cls: 'pal-gap' });
     }
-    for (let i = start; i < end; i++) strip += cellHtml(i);
+    for (let i = start; i < end; i++) {
+      const c = ['tp-cell', ...ptrCls(i)];
+      if (!isAlnum(s[i])) c.push('pal-dim');
+      // Outside [left, right] has been checked (matched or skipped).
+      if (verdict !== false && (met || i < l || i > r)) c.push('tp-done');
+      specs.push({ key: `c${i}`, idx: i, text: shown(s[i]), cls: c.join(' ') });
+    }
   });
+  if (bands[bands.length - 1][1] === len && (l === len || r === len)) {
+    specs.push({ key: 'ghost-hi', idx: len, text: '', cls: ['tp-cell', 'tp-ghost', ...ptrCls(len)].join(' ') });
+  }
+  syncCells(v.array, specs);
+  v.array.classList.add('pal-array');
 
-  const lv = leftIdx >= 0 && leftIdx < len ? escapeHtml(sValue[leftIdx]) : '—';
-  const rv = rightIdx >= 0 && rightIdx < len ? escapeHtml(sValue[rightIdx]) : '—';
-  // Factual, value-only badge (≠ never claims a verdict — see grill round 2).
+  const ch = (i) => (i >= 0 && i < len ? escapeHtml(shown(s[i])) : '—');
+  // Factual, value-only badge (≠ never claims a verdict).
   const badge = cmp === 'skip' ? '<span class="pal-badge">— skipping</span>'
     : cmp === 'match' ? '<span class="pal-badge pal-match">= equal</span>'
-    : cmp === 'diff' ? '<span class="pal-badge pal-diff">≠ differs</span>'
-    : '<span class="pal-badge">—</span>';
-  // Verdict chips from the call's RECORDED return (Q1/Q3 follow-up).
-  const chip = verdict === false && termPair != null && leftIdx === termPair[0] && rightIdx === termPair[1]
+      : cmp === 'diff' ? '<span class="pal-badge pal-diff">≠ differs</span>'
+        : '<span class="pal-badge">—</span>';
+  const chip = atTerm
     ? '<span class="pal-chip pal-chip-false">✗ call returned False</span>'
-    : verdict === true && leftIdx >= rightIdx
+    : verdict === true && met
       ? '<span class="pal-chip pal-chip-true">✓ call returned True</span>'
       : '';
+  v.strip.innerHTML = `
+    <span class="tp-arr">${escapeHtml(sName)}[${len}]</span>
+    ${ptrChip(lName, l, ch(l), roleL)}
+    ${ptrChip(rName, r, ch(r), roleR)}
+    <span class="tp-arr">${escapeHtml(sName)}[${escapeHtml(lName)}] vs ${escapeHtml(sName)}[${escapeHtml(rName)}] ${badge}</span>
+    ${chip}`;
 
-  els.palindromeBody.innerHTML = `
-    <div class="tp-strip">
-      <span class="tp-arr">${escapeHtml(sName)}[${len}]</span>
-      <span class="tp-ptr tp-left-label">${escapeHtml(leftName)}=${leftIdx} → ${lv}</span>
-      <span class="tp-ptr tp-right-label">${escapeHtml(rightName)}=${rightIdx} → ${rv}</span>
-      <span class="tp-arr">s[left] vs s[right] ${badge}</span>
-      ${chip}
-    </div>
-    <div class="tp-array pal-array" data-left="${leftIdx}" data-right="${rightIdx}">
-      ${strip}
-    </div>
-  `;
+  // Caption: what the last move was, from the previous frame of this call.
+  let cap;
+  if (frame.frozen) cap = frozenCaption(frame);
+  else if (atTerm) cap = `<span class="tp-cap-warn">'${ch(l)}' ≠ '${ch(r)}' — mismatch, so the string is not a palindrome</span>`;
+  else if (prev) {
+    const parts = [];
+    const pl = prev.leftIdx, pr = prev.rightIdx;
+    const prevCmp = compareState(s, pl, pr);
+    if (l > pl && r < pr && prevCmp === 'match') {
+      parts.push(`'${ch(pl)}' = '${ch(pr)}' (ignoring case) — both pointers move in`);
+    } else {
+      if (l > pl) parts.push(pl >= 0 && pl < len && !isAlnum(s[pl])
+        ? `${escapeHtml(lName)} skipped '${ch(pl)}' (not a letter or digit)`
+        : `${escapeHtml(lName)} ${pl} → ${l}`);
+      if (r < pr) parts.push(pr >= 0 && pr < len && !isAlnum(s[pr])
+        ? `${escapeHtml(rName)} skipped '${ch(pr)}' (not a letter or digit)`
+        : `${escapeHtml(rName)} ${pr} → ${r}`);
+    }
+    cap = parts.join(' · ') || describeMoves(prev, det);
+  }
+  if (!cap) {
+    cap = met ? `<span class="tp-cap-good">pointers met — every pair matched</span>`
+      : cmp === 'skip' ? 'a pointer is on a non-alphanumeric character — it will be skipped'
+        : `compare '${ch(l)}' with '${ch(r)}'`;
+  }
+  setCaption(v, cap);
+  setLegend(v, [['tp-sw-done', 'checked'], ['tp-sw-dim', 'ignored (not a letter/digit)'], ['tp-sw-live', 'still to check']]);
+  placeMarkers(v, [
+    { name: lName, idx: l, role: roleL },
+    { name: rName, idx: r, role: roleR },
+  ], ctx.animate);
+  if (ctx.animate && atTerm) {
+    flash(cellAt(v, l), 'tp-swap');
+    flash(cellAt(v, r), 'tp-swap');
+  }
 }
-
-registerPane({
-  id: 'palindrome',
-  label: 'Valid Palindrome',
-  family: 'two-pointers',
-  mode: 'two-pointers.valid-palindrome',
-  tabId: 'tabPalindrome',
-  bodyId: 'palindromeBody',
-  render: renderPalindromePanel,
-  engage: { detect: detectPalindrome, tab: 'palindrome' },
-});

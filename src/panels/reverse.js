@@ -1,122 +1,82 @@
-/* ═══════════════ Reverse Array/String tab (two-pointers sub-mode) ═══════════════ */
+/* ═══════════════ Reverse Array/String tab (two-pointers sub-mode) ═══════════════
+   Ground truth only: values come verbatim from the tracer's per-step
+   snapshots. 2026-11-24: shared kit — the swapped pair flies along an arc,
+   settled cells (outside [left, right]) read "in place", the whole array
+   always renders from index 0 when it fits (was anchored at min(l,r)-2,
+   which hid the already-reversed head). */
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
-import { escapeHtml, fmtValue } from '../utils.js';
-import { detectTwoPointers, parseArrayValue, resolveDetectedFrame } from './twoPointers.js';
-import { registerPane } from './registry.js';
-import { hideOutputPanes } from './paneController.js';
-
-const REVERSE_VIS_CAP = 30;  // max array elements displayed
-
-// Which module-scope step was rendered last — the swap pulse fires only when
-// a DIFFERENT step is drawn, so steady re-renders of the same step don't strobe.
-let lastRenderedStep = -1;
+import { escapeHtml } from '../utils.js';
+import { dsaFamily } from '../config.js';
+import { changedIndices } from './pointerLogic.js';
+import { syncCells, placeMarkers, cellAt, flash, playSwap, ptrChip, setCaption, setLegend } from './pointerKit.js';
+import {
+  detectTwoPointers, parseArrayValue, renderPointerPane, buildCells, valHtml,
+  describeMoves, frozenCaption,
+} from './twoPointers.js';
 
 export function renderReversePanel() {
-  // Tab/body visibility is owned by paneController; this only renders content.
-  if (state.dsaMode !== 'two-pointers.reverse-array-string') return;
+  const fam = dsaFamily(state.dsaMode);
+  const isReverse = state.dsaMode === 'two-pointers.reverse-array-string';
+  if (fam !== 'two-pointers' || !isReverse) {
+    els.tabReverse.hidden = true;
+    els.reverseBody.hidden = true;
+    return;
+  }
+  els.outTabs.hidden = false;
+  els.outTitle.hidden = true;
+  els.tabReverse.hidden = false;
+  // Visibility first so the persistent view can measure its cells.
+  els.output.hidden = state.outTab !== 'out';
+  els.reverseBody.hidden = state.outTab !== 'reverse';
   renderReverse();
 }
 
 export function renderReverse() {
-  if (!state.steps.length) { hideOutputPanes(state.dsaMode); return; }
-
-  // The one-time tab switch + jump to the first detected step happens in
-  // render() via paneController's one-time engage, before the controls are drawn.
-
-  // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
-  // resolve the frame from the TARGET step, not from render history, so a
-  // direct Last/First jump lands on the same frame as stepping there.
-  // Detection-less steps freeze the nearest real frame (flashes suppressed).
-  const frame = resolveDetectedFrame(detectTwoPointers, state.idx);
-  if (!frame) {
-    state.panes.lastValidFrame = -1;
-    renderReversePanelContent(null);
-    return;
-  }
-  state.panes.lastValidFrame = frame.frameStep;
-  renderReversePanelContent(frame.detection, frame.frameStep, frame.frozen);
+  renderPointerPane(els.reverseBody, {
+    detect: detectTwoPointers,
+    empty: ['No reverse pattern detected — needs two pointers swapping a sequence.', 'Use Prev/Next to navigate.'],
+    build: buildReverse,
+  });
 }
 
-// Renders the current step's reverse visual into els.reverseBody.
-// Ground truth only: values come verbatim from the tracer's per-step snapshots.
-// (detection, frameStep, frozen): a frozen render re-draws the remembered
-// frame — its own values (Q4), with the swap flash suppressed (a frozen
-// re-render is never a new event).
-function renderReversePanelContent(detection, frameStep = state.idx, frozen = false) {
-  if (!detection) {
-    els.reverseBody.innerHTML = `
-      <div class="tp-strip">No reverse pattern detected — needs two pointers swapping a sequence.</div>
-      <div class="tp-empty">Use Prev/Next to navigate.</div>
-    `;
-    lastRenderedStep = -1;
-    return;
+function buildReverse(ctx) {
+  const { v, det, arr, frame, prev } = ctx;
+  const l = det.leftIdx, r = det.rightIdx;
+  const met = l >= r;
+  const { specs, pointers, roles } = buildCells(arr, det, {
+    // Outside [left, right] is settled; once the pointers meet, all of it is.
+    cellCls: (i) => (met || i < l || i > r ? ['tp-done'] : []),
+  });
+  syncCells(v.array, specs);
+  v.strip.innerHTML = `
+    <span class="tp-arr">${escapeHtml(det.arrName)}[${arr.length}]</span>
+    ${ptrChip(det.leftName, l, valHtml(arr, l), roles[0])}
+    ${ptrChip(det.rightName, r, valHtml(arr, r), roles[1])}`;
+
+  // Swap = cells whose value changed since the previous recorded step (the
+  // swap line itself is the step before its effect shows).
+  const prevStep = frame.frameStep > 0 ? state.steps[frame.frameStep - 1] : null;
+  const before = parseArrayValue(prevStep?.locals?.[det.arrName]);
+  const changed = changedIndices(before, arr);
+  const swap = changed.length === 2 ? changed : null;
+
+  let cap;
+  if (frame.frozen) cap = frozenCaption(frame);
+  else if (swap) {
+    const [a, b] = swap;
+    cap = `swapped ${escapeHtml(det.arrName)}[${a}] ↔ ${escapeHtml(det.arrName)}[${b}] (${valHtml(arr, b)} ↔ ${valHtml(arr, a)})`;
+  } else if (changed.length) {
+    cap = `${changed.length === 1 ? 'wrote' : 'changed'} ${changed.map((k) => `${escapeHtml(det.arrName)}[${k}]`).join(', ')}`;
+  } else if (met) {
+    cap = `<span class="tp-cap-good">${escapeHtml(det.leftName)} ≥ ${escapeHtml(det.rightName)} — pointers met, every element is in place</span>`;
+  } else {
+    cap = describeMoves(prev, det) || `swap ${escapeHtml(det.arrName)}[${l}] and ${escapeHtml(det.arrName)}[${r}] next`;
   }
-
-  const { arrName, arrValue, leftName, rightName, leftIdx, rightIdx } = detection;
-  const arr = parseArrayValue(arrValue);
-  if (!arr) { els.reverseBody.innerHTML = ''; lastRenderedStep = -1; return; }
-
-  const len = arr.length;
-  const visLen = Math.min(len, REVERSE_VIS_CAP);
-  const startIdx = Math.max(0, Math.min(leftIdx, rightIdx) - 2);
-  const endIdx = Math.min(len, startIdx + visLen);
-
-  // Swap flash is ground truth: compare this step's snapshot of the detected
-  // array with the previous step's snapshot of the same variable — cells whose
-  // value changed are the ones the swap line just touched. A frozen re-render
-  // is never a new event (persistent-animation design Q1): flash suppressed.
-  let swappedFrom = -1, swappedTo = -1;
-  const pulse = !frozen && state.idx !== lastRenderedStep;
-  const prevStep = frameStep > 0 ? state.steps[frameStep - 1] : null;
-  const prevArr = parseArrayValue(prevStep?.locals?.[arrName]);
-  if (pulse && prevArr && prevArr.length === arr.length) {
-    for (let i = 0; i < arr.length; i++) {
-      if (JSON.stringify(prevArr[i]) !== JSON.stringify(arr[i])) {
-        if (swappedFrom < 0) swappedFrom = i;
-        else if (swappedTo < 0) swappedTo = i;
-      }
-    }
-  }
-  lastRenderedStep = state.idx;
-
-  // Array strip cells with cursor + swap classes
-  let cellsHtml = '';
-  for (let i = startIdx; i < endIdx; i++) {
-    const isLeft = i === leftIdx;
-    const isRight = i === rightIdx;
-    const isSwapped = pulse && (i === swappedFrom || i === swappedTo);
-    const cls = ['tp-cell'];
-    if (isLeft) cls.push('tp-left');
-    if (isRight) cls.push('tp-right');
-    if (isLeft && isRight) cls.push('tp-both');
-    if (isSwapped) cls.push('tp-swap');
-    cellsHtml += `<div class="${cls.join(' ')}" data-idx="${i}">${escapeHtml(fmtValue(arr[i]))}</div>`;
-  }
-
-  const leftVal = leftIdx >= 0 && leftIdx < len ? escapeHtml(fmtValue(arr[leftIdx])) : '—';
-  const rightVal = rightIdx >= 0 && rightIdx < len ? escapeHtml(fmtValue(arr[rightIdx])) : '—';
-
-  els.reverseBody.innerHTML = `
-    <div class="tp-strip">
-      <span class="tp-arr">${escapeHtml(arrName)}[${len}]</span>
-      <span class="tp-ptr tp-left-label">${escapeHtml(leftName)}=${leftIdx} → ${leftVal}</span>
-      <span class="tp-ptr tp-right-label">${escapeHtml(rightName)}=${rightIdx} → ${rightVal}</span>
-    </div>
-    <div class="tp-array" data-left="${leftIdx}" data-right="${rightIdx}">
-      ${cellsHtml}
-    </div>
-  `;
+  setCaption(v, cap);
+  setLegend(v, [['tp-sw-done', 'in place (already swapped)'], ['tp-sw-live', 'not yet visited']]);
+  placeMarkers(v, pointers, ctx.animate);
+  if (swap && ctx.travel) playSwap(v, swap[0], swap[1], ctx.ms);
+  else if (ctx.animate) for (const k of changed) flash(cellAt(v, k), 'tp-swap');
 }
-
-registerPane({
-  id: 'reverse',
-  label: 'Reverse Array/String',
-  family: 'two-pointers',
-  mode: 'two-pointers.reverse-array-string',
-  tabId: 'tabReverse',
-  bodyId: 'reverseBody',
-  render: renderReversePanel,
-  engage: { detect: detectTwoPointers, tab: 'reverse' },
-});

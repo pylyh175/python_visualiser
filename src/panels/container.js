@@ -1,308 +1,221 @@
 /* ═══════════════ Container With Most Water tab (two-pointers sub-mode) ═══════════════
-   Mirrors reverse.js/palindrome.js: id-keyed tab, ground-truth-only animation,
-   strobe-guarded pulse on max_area update.
-   Water between thin bars (2026-11-05-container-water-between-bars-design.md):
-   - Fixed 8px bars with flexible gaps
-   - Single water rectangle between pointer bars
-   - Water height = min(height[left], height[right])
-   - Smooth transitions on pointer moves */
+   Thin bars + one water rectangle between the pointer bars
+   (2026-11-05/06 container designs). 2026-11-24 upgrade on the shared kit:
+   - bars persist between steps: heights, colours and the water SLIDE
+     instead of the whole pane (and the water) being rebuilt from zero;
+   - the best container so far stays as a dashed outline;
+   - the caption names the rule behind each move (the shorter wall moves);
+   - bars outside [left, right] are dimmed — those walls are ruled out;
+   - "best" is computed from the recorded heights + pointers, and the code's
+     own best variable is shown by whatever name it has (was hard-coded
+     `max_area`, so the template's `maxArea` read 0 and pulsed every step). */
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml, fmtValue } from '../utils.js';
-import { detectTwoPointers, parseArrayValue, resolveDetectedFrame } from './twoPointers.js';
-import { registerPane } from './registry.js';
-import { hideOutputPanes } from './paneController.js';
+import { dsaFamily } from '../config.js';
+import { cmpSymbol, findBestLocal, pointerRoles, visibleWindow } from './pointerLogic.js';
+import { syncCells, placeMarkers, flash, ptrChip, setCaption, setLegend } from './pointerKit.js';
+import {
+  detectTwoPointers, parseArrayValue, renderPointerPane, detectAtStep, callIdAt,
+  inRange, valHtml, frozenCaption, describeMoves,
+} from './twoPointers.js';
 
 const CONTAINER_VIS_CAP = 30;
-// Thin fixed bars (2026-11-06-container-finalized-bars-design.md Q3)
-const BAR_WIDTH = 10;  // fixed thin bar width (matches CSS)
+const BAR_WIDTH = 10;       // fixed thin bar width (matches CSS)
+const TOP_BAND = 24;        // above bars: value label (CSS padding-top)
+const BOTTOM_BAND = 18;     // below bars: index label (CSS padding-bottom)
+const PROVISIONAL_AVAIL_H = 200;  // factor stub for renders into a hidden body
+const BODY_PAD_H = 16;      // #containerBody 8px left + 8px right
+const MIN_GAP = 2;          // below this, horizontal scroll takes over
+const MAX_GAP = 72;         // clamp for tiny arrays — remainder stays centered
+const MIN_BAR_PX = 4;
 
-// Label clearance bands (Q2) — CSS mirrors these exact values:
-const TOP_BAND = 24;      // above bars: value label (tp-val top:-16)
-const BOTTOM_BAND = 18;   // below bars: index label (::before bottom:-14)
-const BODY_PAD = 8;       // #containerBody 4px top + 4px bottom
-const STRIP_MARGIN = 8;   // .tp-strip margin-bottom
-const PROVISIONAL_AVAIL_H = 300;  // factor stub for renders into a hidden body
-// Responsive horizontal spacing (2026-11-06-responsive-container-bars-design.md R2):
-const BODY_PAD_H = 16;    // #containerBody 8px left + 8px right
-const MIN_GAP = 2;        // below this, horizontal scroll takes over
-const MAX_GAP = 72;       // clamp for tiny arrays — remainder stays centered
+// Kept for runner.js's resetRun contract; the scale is now derived from the
+// live array height on every visible render, so there is nothing to reset.
+export function resetContainerScale() { }
 
-// Last rendered step — pulse fires only on a DIFFERENT step (no strobe on re-renders).
-let lastRenderedStep = -1;
-
-// Responsive scale (2026-11-06-responsive-container-bars-design.md R1,
-// superseding the locked-scale Q1 of the finalized-bars design): recomputed
-// whenever the pane height or the array max changes, so bars/water always fit
-// the CURRENT tab size. Only VISIBLE renders write the cache — a hidden body
-// has no usable clientHeight (staleness here was the original growth bug);
-// hidden renders use a provisional, uncached factor. resetRun →
-// resetContainerScale() still gives every new run a clean first measurement.
-let containerScale = null;
-
-export function resetContainerScale() {
-  containerScale = null;
-}
-
-// Resize hook (R3): any size change of #containerBody re-renders the container
-// path so bar heights/gaps/water track the tab. Strobe guard keeps these
-// re-renders pulse-free (same step ⇒ no pulse).
+// Resize hook: any size change of #containerBody re-renders the container
+// so bar heights / gaps / water track the tab (same step ⇒ no pulse).
 let containerRO = null;
-
 export function initContainerResize() {
   if (containerRO || typeof ResizeObserver === 'undefined') return;
   containerRO = new ResizeObserver(() => {
     if (!state.steps.length) return;
     if (state.dsaMode !== 'two-pointers.container-with-most-water') return;
     if (els.containerBody.hidden) return;
-    renderContainerPanel();
+    renderContainer();
   });
   containerRO.observe(els.containerBody);
 }
 
 export function renderContainerPanel() {
-  // Tab/body visibility is owned by paneController; this only renders content.
-  if (state.dsaMode !== 'two-pointers.container-with-most-water') return;
+  const fam = dsaFamily(state.dsaMode);
+  const isContainer = state.dsaMode === 'two-pointers.container-with-most-water';
+  if (fam !== 'two-pointers' || !isContainer) {
+    els.tabContainer.hidden = true;
+    els.containerBody.hidden = true;
+    return;
+  }
+  els.outTabs.hidden = false;
+  els.outTitle.hidden = true;
+  els.tabContainer.hidden = false;
+  els.output.hidden = state.outTab !== 'out';
+  els.containerBody.hidden = state.outTab !== 'container';
   renderContainer();
 }
 
 export function renderContainer() {
-  if (!state.steps.length) { hideOutputPanes(state.dsaMode); return; }
-
-  // The one-time tab switch + jump to the first detected step happens in
-  // render() via paneController's one-time engage, before the controls are drawn.
-
-  // PERSISTENT ANIMATION (2026-11-06 design, made jump-safe 2026-11-20):
-  // resolve the frame from the TARGET step, not from render history, so a
-  // direct Last/First jump lands on the same frame as stepping there.
-  // Detection-less steps freeze the nearest real frame (pulses suppressed).
-  const frame = resolveDetectedFrame(detectTwoPointers, state.idx);
-  if (!frame) {
-    state.panes.lastValidFrame = -1;
-    renderContainerPanelContent(null);
-    return;
-  }
-  state.panes.lastValidFrame = frame.frameStep;
-  renderContainerPanelContent(frame.detection, frame.frameStep, frame.frozen);
+  renderPointerPane(els.containerBody, {
+    detect: detectTwoPointers,
+    variant: 'bars',
+    empty: ['No container pattern detected — needs two pointers on a height array.', 'Use Prev/Next to navigate.'],
+    build: buildContainer,
+  });
 }
 
-// Renders the current step's container visual into els.containerBody.
-// Ground truth only: height, left, right, max_area from tracer snapshots.
-// (detection, frameStep, frozen): a frozen render re-draws the remembered
-// frame — frameStep is that step's index (strip values Q4) and pulses are
-// suppressed (a frozen re-render is never a new event).
-function renderContainerPanelContent(detection, frameStep = state.idx, frozen = false) {
-  if (!detection) {
-    els.containerBody.innerHTML = `
-      <div class="tp-strip">No container pattern detected — needs two pointers on a height array.</div>
-      <div class="tp-empty">Use Prev/Next to navigate.</div>
-    `;
-    lastRenderedStep = -1;
-    return;
+const areaOf = (h, l, r) => (inRange(h, l) && inRange(h, r) && l < r
+  ? (r - l) * Math.min(h[l], h[r]) : null);
+
+// Best container among this call's recorded frames up to `upTo` — computed
+// from ground-truth heights + pointers, independent of variable names.
+function bestSoFar(upTo) {
+  const cid = callIdAt(upTo);
+  let best = null;
+  for (let i = 0; i <= upTo; i++) {
+    const det = detectAtStep(detectTwoPointers, i);
+    if (!det || callIdAt(i) !== cid) continue;
+    const h = parseArrayValue(det.arrValue);
+    if (!h) continue;
+    const a = areaOf(h, det.leftIdx, det.rightIdx);
+    if (a != null && (!best || a > best.area)) best = { area: a, l: det.leftIdx, r: det.rightIdx, level: Math.min(h[det.leftIdx], h[det.rightIdx]), step: i };
   }
+  return best;
+}
 
-  const { arrName, arrValue, leftName, rightName, leftIdx, rightIdx } = detection;
-  const arr = parseArrayValue(arrValue);
-  if (!arr) { els.containerBody.innerHTML = ''; lastRenderedStep = -1; return; }
-
+function buildContainer(ctx) {
+  const { v, det, arr, frame, prev } = ctx;
+  const l = det.leftIdx, r = det.rightIdx;
   const len = arr.length;
-  const visLen = Math.min(len, CONTAINER_VIS_CAP);
-  // For small arrays (<= CONTAINER_VIS_CAP), always show all bars
-  // by anchoring the window at the start. Only use pointer-centric window
-  // for large arrays where windowing is necessary.
-  let startIdx, endIdx;
-  if (len <= CONTAINER_VIS_CAP) {
-    startIdx = 0;
-    endIdx = len;
-  } else {
-    startIdx = Math.max(0, Math.min(leftIdx, rightIdx) - 2);
-    endIdx = Math.min(len, startIdx + visLen);
+  const [roleL, roleR] = pointerRoles(det.leftName, det.rightName);
+  const clamp = (x) => Math.max(0, Math.min(len - 1, x));
+  const [startIdx, endIdx] = visibleWindow(len, clamp(l), clamp(r), CONTAINER_VIS_CAP);
+
+  // Scale from the array's live height (visible) or a provisional stub.
+  const nums = arr.filter((x) => typeof x === 'number');
+  const maxVal = Math.max(1, ...nums);
+  const minNonZero = Math.max(1, Math.min(...nums.filter((x) => x > 0), maxVal));
+  const visible = !els.containerBody.hidden && v.array.clientHeight > 0;
+  const availH = visible ? Math.max(60, v.array.clientHeight - TOP_BAND - BOTTOM_BAND) : PROVISIONAL_AVAIL_H;
+  const factor = Math.max(availH / maxVal, MIN_BAR_PX / minNonZero);
+
+  // Responsive horizontal spacing: gap grows with the tab width.
+  const numVisible = endIdx - startIdx;
+  const innerW = (els.containerBody.clientWidth || 400) - BODY_PAD_H;
+  const fillGap = Math.floor((innerW - numVisible * BAR_WIDTH) / Math.max(1, numVisible - 1));
+  v.array.style.setProperty('--gap', `${Math.min(MAX_GAP, Math.max(MIN_GAP, fillGap))}px`);
+
+  const specs = [];
+  for (let i = startIdx; i < endIdx; i++) {
+    const c = ['tp-cell'];
+    if (i === l) c.push(`tp-at-${roleL}`);
+    if (i === r) c.push(`tp-at-${roleR}`);
+    if (i === l && i === r) c.push('tp-both');
+    if (l <= r && (i < l || i > r)) c.push('tp-out');
+    const val = arr[i];
+    const hPx = Math.max(MIN_BAR_PX, Math.round((typeof val === 'number' ? val : 0) * factor));
+    specs.push({
+      key: `c${i}`, idx: i, cls: c.join(' '),
+      html: `<span class="tp-val">${escapeHtml(fmtValue(val))}</span>`,
+      style: `height: ${hPx}px; width: ${BAR_WIDTH}px;`,
+    });
   }
-  console.log('[container] Frame step', frameStep, '(frozen:', frozen, '):', { leftIdx, rightIdx, len, visLen, startIdx, endIdx, visibleCount: endIdx - startIdx });
+  syncCells(v.array, specs);
 
-  // Frame step's max_area from tracer (ground truth; Q4: the frozen frame
-  // shows ITS OWN step's values, not the navigated step's).
-  const maxAreaNow = typeof state.steps[frameStep]?.locals?.max_area === 'number'
-    ? state.steps[frameStep].locals.max_area
-    : 0;
-
-  // Previous step's max_area for pulse detection
-  let maxAreaPrev = -1;
-  const prevStep = frameStep > 0 ? state.steps[frameStep - 1] : null;
-  if (prevStep && typeof prevStep.locals?.max_area === 'number') {
-    maxAreaPrev = prevStep.locals.max_area;
+  // Persistent overlays (water + best outline) live inside the array.
+  let water = v.array.querySelector(':scope > .tp-water-container');
+  if (!water) {
+    water = document.createElement('div');
+    water.className = 'tp-water-container hidden';
+    v.array.appendChild(water);
+  }
+  let bestEl = v.array.querySelector(':scope > .tp-best');
+  if (!bestEl) {
+    bestEl = document.createElement('div');
+    bestEl.className = 'tp-best hidden';
+    bestEl.innerHTML = '<span class="tp-best-tag"></span>';
+    v.array.appendChild(bestEl);
   }
 
-  // Pulse on max_area INCREASE (strobe-guarded); a frozen re-render is never
-  // a new event (persistent-animation design Q1: pulses suppressed).
-  const strobe = state.idx !== lastRenderedStep;
-  const pulse = !frozen && strobe && maxAreaNow > maxAreaPrev;
-  lastRenderedStep = state.idx;
+  const level = inRange(arr, l) && inRange(arr, r) ? Math.min(arr[l], arr[r]) : 0;
+  const area = areaOf(arr, l, r);
+  const best = bestSoFar(frame.frameStep);
+  const prevBest = frame.frameStep > 0 ? bestSoFar(frame.frameStep - 1) : null;
+  const improved = !!best && best.step === frame.frameStep && (!prevBest || best.area > prevBest.area);
+  const loc = state.steps[frame.frameStep]?.locals || {};
+  const bestVar = findBestLocal(loc, [det.leftName, det.rightName, 'currentArea', 'current_area', 'area', 'curr', 'cur']);
 
-  // Water level = min(height[left], height[right]) — update module-level for positionWater()
-  waterLevel = (leftIdx >= 0 && rightIdx >= 0 && leftIdx < len && rightIdx < len)
-    ? Math.min(arr[leftIdx], arr[rightIdx])
-    : 0;
-  const currentArea = (leftIdx >= 0 && rightIdx >= 0 && leftIdx < len && rightIdx < len)
-    ? (rightIdx - leftIdx) * waterLevel
-    : 0;
+  placeRect(v, water, l, r, level * factor, area != null && level > 0);
+  placeRect(v, bestEl, best ? best.l : -1, best ? best.r : -1, best ? best.level * factor : 0,
+    !!best && !(best.l === l && best.r === r));
+  if (best) bestEl.firstChild.textContent = `best ${best.area}`;
 
-  // Responsive scale (R1): recomputed whenever the pane height or the array
-  // max changes; only visible renders write the cache (hidden bodies have no
-  // usable clientHeight — a stale measurement here was the original growth bug).
-  const maxVal = Math.max(...arr);
-  const containerEl = els.containerBody;
-  if (!els.containerBody.hidden) {
-    const stripEl = containerEl.querySelector('.tp-strip');
-    const stripH = stripEl ? stripEl.offsetHeight : 36;
-    // Bands (Q2): TOP_BAND above bars for the value label, BOTTOM_BAND below
-    // bars for the index label; BODY_PAD + STRIP_MARGIN are the fixed chrome.
-    const availH = Math.max(80, containerEl.clientHeight - stripH - STRIP_MARGIN - BODY_PAD - TOP_BAND - BOTTOM_BAND);
-    const minNonZero = Math.max(1, Math.min(...arr.filter(v => v > 0)));
-    if (!containerScale || containerScale.maxVal !== maxVal || containerScale.availHeight !== availH) {
-      containerScale = {
-        factor: Math.max(availH / maxVal, 4 / minNonZero),
-        maxVal,
-        availHeight: availH,
-        minBarPx: 4,
-      };
+  const areaTxt = area != null ? `area = ${r - l} × ${level} = ${area}` : 'area = —';
+  const bestTxt = best ? `best so far ${best.area}` : 'best so far —';
+  v.strip.innerHTML = `
+    <span class="tp-arr">${escapeHtml(det.arrName)}[${len}]</span>
+    ${ptrChip(det.leftName, l, valHtml(arr, l), roleL)}
+    ${ptrChip(det.rightName, r, valHtml(arr, r), roleR)}
+    <span class="tp-area">${areaTxt}</span>
+    <span class="tp-badge${improved ? ' tp-badge-good' : ''}">${bestTxt}${bestVar ? ` · ${escapeHtml(bestVar)} = ${loc[bestVar]}` : ''}</span>`;
+
+  let cap;
+  if (frame.frozen) cap = frozenCaption(frame);
+  else if (prev && inRange(arr, prev.leftIdx) && inRange(arr, prev.rightIdx)) {
+    const a = arr[prev.leftIdx], b = arr[prev.rightIdx];
+    const pre = `${escapeHtml(det.arrName)}[${prev.leftIdx}]=${a} ${cmpSymbol(a, b)} ${escapeHtml(det.arrName)}[${prev.rightIdx}]=${b}`;
+    const why = a === b
+      ? 'equal walls — neither can hold more water with a narrower gap, so either may move'
+      : "the shorter wall limits the water, so keeping it can't do better";
+    if (l > prev.leftIdx && r === prev.rightIdx) {
+      cap = `${pre} → <b>${escapeHtml(det.leftName)}</b> moves in: ${why}`;
+    } else if (r < prev.rightIdx && l === prev.leftIdx) {
+      cap = `${pre} → <b>${escapeHtml(det.rightName)}</b> moves in: ${why}`;
+    } else {
+      cap = describeMoves(prev, det);
     }
   }
-  // Hidden-body render: provisional factor, NOT cached (scale re-locks on the
-  // first visible render of this run).
-  const factor = containerScale
-    ? containerScale.factor
-    : Math.max(PROVISIONAL_AVAIL_H / maxVal, 4 / Math.max(1, Math.min(...arr.filter(v => v > 0))));
-  const minBarPx = 4;
-
-  // Both pointers in visible window?
-  const leftInView = leftIdx >= startIdx && leftIdx < endIdx;
-  const rightInView = rightIdx >= startIdx && rightIdx < endIdx;
-  const bothInView = leftInView && rightInView;
-
-  // Responsive horizontal spacing (R2): the gap grows with the tab width so
-  // the group fills it, clamped to [MIN_GAP, MAX_GAP] — beyond the clamp the
-  // CSS `safe center` keeps the row centered; below MIN_GAP the x-scroll
-  // takes over (very large arrays).
-  const numVisible = endIdx - startIdx;
-  const gapsNeeded = Math.max(1, numVisible - 1);
-  const innerW = (containerEl?.clientWidth || 400) - BODY_PAD_H;
-  const fillGap = Math.floor((innerW - numVisible * BAR_WIDTH) / gapsNeeded);
-  const estGap = Math.min(MAX_GAP, Math.max(MIN_GAP, fillGap));
-
-  // Build bar cells
-  let cellsHtml = '';
-  for (let i = startIdx; i < endIdx; i++) {
-    const isLeft = i === leftIdx;
-    const isRight = i === rightIdx;
-    const cls = ['tp-cell'];
-    if (isLeft) cls.push('tp-left');
-    if (isRight) cls.push('tp-right');
-    if (isLeft && isRight) cls.push('tp-both');
-    if (pulse) cls.push('tp-pulse');
-
-    const val = arr[i];
-    const barHeightPx = Math.max(minBarPx, Math.round(val * factor));
-    const valStr = escapeHtml(fmtValue(val));
-
-    cellsHtml += `
-      <div class="${cls.join(' ')}" data-idx="${i}" data-array-idx="${i}" style="height: ${barHeightPx}px; width: ${BAR_WIDTH}px;">
-        <span class="tp-val">${valStr}</span>
-      </div>
-    `;
-  }
-
-  const leftVal = leftIdx >= 0 && leftIdx < len ? escapeHtml(fmtValue(arr[leftIdx])) : '—';
-  const rightVal = rightIdx >= 0 && rightIdx < len ? escapeHtml(fmtValue(arr[rightIdx])) : '—';
-
-  // Area badge with pulse
-  const areaBadge = pulse
-    ? `<span class="tp-area tp-pulse">area = ${currentArea} (max ${maxAreaNow})</span>`
-    : `<span class="tp-area">area = ${currentArea} (max ${maxAreaNow})</span>`;
-
-  // Water container element (only if both pointers in view)
-  let waterHtml = '';
-  if (bothInView && waterLevel > 0) {
-    // Position will be set after layout via JS
-    waterHtml = `<div class="tp-water-container" style="height: 0px;"></div>`;
-  } else {
-    waterHtml = `<div class="tp-water-container hidden"></div>`;
-  }
-
-  els.containerBody.innerHTML = `
-    <div class="tp-strip">
-      <span class="tp-arr">${escapeHtml(arrName)}[${len}]</span>
-      <span class="tp-ptr tp-left-label">${escapeHtml(leftName)}=${leftIdx} → ${leftVal}</span>
-      <span class="tp-ptr tp-right-label">${escapeHtml(rightName)}=${rightIdx} → ${rightVal}</span>
-      <span class="tp-arr">${areaBadge}</span>
-    </div>
-    <div class="tp-array" data-container data-left="${leftIdx}" data-right="${rightIdx}" style="--gap: ${estGap}px;">
-      ${cellsHtml}
-      ${waterHtml}
-    </div>
-  `;
-
-  // After paint: position the water container using actual bar positions
-  if (bothInView && waterLevel > 0) {
-    // Use requestAnimationFrame to wait for layout
-    requestAnimationFrame(() => positionWater());
-  }
+  if (improved && !frame.frozen) cap = `<span class="tp-cap-good">new best: ${best.area}</span>${cap ? ' · ' + cap : ''}`;
+  if (!cap) cap = l >= r ? '<span class="tp-cap-good">pointers met — every wall pair worth trying has been tried</span>' : 'water fills up to the shorter wall';
+  setCaption(v, cap);
+  setLegend(v, [['tp-sw-water', 'current container'], ['tp-sw-best', 'best so far'], ['tp-sw-out', 'ruled out']]);
+  placeMarkers(v, [
+    { name: det.leftName, idx: l, role: roleL },
+    { name: det.rightName, idx: r, role: roleR },
+  ], ctx.animate);
+  if (ctx.animate && improved) flash(water, 'tp-pulse');
 }
 
-// Position water container between the two pointer bars
-function positionWater() {
-  const arrayEl = els.containerBody?.querySelector('.tp-array[data-container]');
-  if (!arrayEl) return;
-
-  const leftIdx = parseInt(arrayEl.dataset.left, 10);
-  const rightIdx = parseInt(arrayEl.dataset.right, 10);
-  if (leftIdx >= rightIdx) return;
-
-  const leftBar = arrayEl.querySelector(`.tp-cell[data-array-idx="${leftIdx}"]`);
-  const rightBar = arrayEl.querySelector(`.tp-cell[data-array-idx="${rightIdx}"]`);
-  const waterEl = arrayEl.querySelector('.tp-water-container');
-  if (!leftBar || !rightBar || !waterEl) return;
-
-  const arrayRect = arrayEl.getBoundingClientRect();
-  const leftRect = leftBar.getBoundingClientRect();
-  const rightRect = rightBar.getBoundingClientRect();
-
-  // Water spans from right edge of left bar to left edge of right bar
-  const waterLeft = leftRect.right - arrayRect.left;
-  const waterWidth = rightRect.left - leftRect.right;
-  // Scale locked per run (Q1): factor 0 before the lock keeps the water hidden
-  // until bars have their final, locked scale.
-  const waterHeight = Math.round(waterLevel * (containerScale ? containerScale.factor : 0));
-
-  if (waterWidth <= 0 || waterHeight <= 0) {
-    waterEl.classList.add('hidden');
+// Position an overlay rectangle between the inner edges of bars l and r,
+// `heightPx` tall from the baseline. Geometry is read synchronously (the
+// cells were just reconciled), so no requestAnimationFrame is needed.
+function placeRect(v, el, l, r, heightPx, show) {
+  const lb = v.array.querySelector(`:scope > [data-idx="${l}"]`);
+  const rb = v.array.querySelector(`:scope > [data-idx="${r}"]`);
+  const base = v.array.getBoundingClientRect();
+  if (!show || !lb || !rb || l >= r || !base.width || heightPx <= 0) {
+    el.classList.add('hidden');
     return;
   }
-
-  waterEl.classList.remove('hidden');
-  waterEl.style.left = `${waterLeft}px`;
-  waterEl.style.width = `${waterWidth}px`;
-  waterEl.style.height = `${waterHeight}px`;
-
-  // Pulse class on water container too
-  if (arrayEl.querySelector('.tp-cell.tp-pulse')) {
-    waterEl.classList.add('tp-pulse');
-  } else {
-    waterEl.classList.remove('tp-pulse');
-  }
+  const lr = lb.getBoundingClientRect(), rr = rb.getBoundingClientRect();
+  const left = lr.right - base.left + v.array.scrollLeft;
+  const width = rr.left - lr.right;
+  if (width <= 0) { el.classList.add('hidden'); return; }
+  const wasHidden = el.classList.contains('hidden');
+  if (wasHidden) el.style.transition = 'none';
+  el.classList.remove('hidden');
+  el.style.left = `${left}px`;
+  el.style.width = `${width}px`;
+  el.style.height = `${Math.round(heightPx)}px`;
+  if (wasHidden) { void el.offsetWidth; el.style.transition = ''; }
 }
-
-// Store waterLevel for positionWater closure
-let waterLevel = 0;
-
-registerPane({
-  id: 'container',
-  label: 'Container With Most Water',
-  family: 'two-pointers',
-  mode: 'two-pointers.container-with-most-water',
-  tabId: 'tabContainer',
-  bodyId: 'containerBody',
-  render: renderContainerPanel,
-  engage: { detect: detectTwoPointers, tab: 'container' },
-});
