@@ -215,7 +215,7 @@ export function dsaFamily(id = 'none') {
 
 // ── Recursion tree ──
 export const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary row
-export const TREE_SVG_CAP = 250;
+export const TREE_SVG_CAP = 250;      // graphical (SVG) tree limit; bigger trees use the text view
 
 // ── Stack visualiser (2026-11-03-stack-visualiser-design.md) ──
 // Minimum slot count: a figure with ≤ this many items always draws exactly

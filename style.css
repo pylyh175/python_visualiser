@@ -1558,3 +1558,196 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 @media (prefers-reduced-motion: reduce) {
   .tp-marker, .tp-cell, .rt-node, .rt-edge, .tp-water-container, .tp-best { transition: none !important; }
 }
+
+/* ═══════════════ 2026-11-24 viewport detection (src/viewport.js) ═══════════════
+   html[data-viewport] = phone | tablet | laptop | monitor
+   html[data-layout]   = split | stacked      html[data-short] / [data-touch]
+   Laptop is the baseline: every rule below adapts FROM it. */
+
+/* ---- visualiser cell sizing: one set of variables per device class ----
+   panels/pointerKit.js fitCells() reads --tp-cell-min to decide how many
+   cells fit, so CSS stays the single source of sizing truth. */
+:root {
+  --tp-cell-min: 36px;
+  --tp-cell-max: 80px;
+  --tp-cell-h: 44px;
+  --tp-cell-font: 13px;
+  --tp-bar-w: 10px;        /* container bars (container.js reads it) */
+}
+:root[data-viewport="phone"] {
+  --tp-cell-min: 30px;
+  --tp-cell-max: 56px;
+  --tp-cell-h: 38px;
+  --tp-cell-font: 12px;
+  --tp-bar-w: 8px;
+}
+:root[data-viewport="monitor"] {
+  --tp-cell-min: 44px;
+  --tp-cell-max: 96px;
+  --tp-cell-h: 52px;
+  --tp-cell-font: 15px;
+  --tp-bar-w: 16px;
+}
+.tp-cell {
+  flex: 1 1 var(--tp-cell-min);
+  min-width: var(--tp-cell-min);
+  max-width: var(--tp-cell-max);
+  height: var(--tp-cell-h);
+  font-size: var(--tp-cell-font);
+}
+/* Gap between two pointer windows: "…12…" */
+.tp-gap {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+/* Container on narrow panes: only the pointer bars keep their value label */
+.tp-array.tp-tight .tp-cell:not(.tp-at-left):not(.tp-at-right):not(.tp-at-slow):not(.tp-at-fast) .tp-val {
+  display: none;
+}
+
+/* ---- monitor: more room → larger type in the visualisers ---- */
+:root[data-viewport="monitor"] #outputBody,
+:root[data-viewport="monitor"] #treeBody { font-size: 14px; line-height: 20px; }
+:root[data-viewport="monitor"] .tp-strip,
+:root[data-viewport="monitor"] .tp-caption { font-size: 13.5px; }
+:root[data-viewport="monitor"] .tp-marker { font-size: 12.5px; }
+:root[data-viewport="monitor"] header h1 { font-size: 20px; }
+:root[data-viewport="monitor"] .mirror,
+:root[data-viewport="monitor"] textarea { font-size: 15px; line-height: 24px; }
+:root[data-viewport="monitor"] .mirror .row { height: 24px; }
+:root[data-viewport="monitor"] .tp-legend,
+:root[data-viewport="monitor"] .rt-legend { font-size: 12px; }
+
+/* ---- short windows (e.g. 1366×768 laptops): trim chrome, keep the visual ---- */
+:root[data-short] header { padding: 6px 14px; }
+:root[data-short] header h1 { font-size: 16px; }
+:root[data-short] main { padding: 8px; }
+:root[data-short] #toolbar { padding: 6px 10px; }
+:root[data-short] .legend { display: none; }
+:root[data-short] .tp-track { padding-top: 24px; }
+:root[data-short] .tp-caption { margin-bottom: 2px; }
+
+/* ---- stacked layout (phones, upright tablets): one scrolling column ----
+   Order: editor → visualisation → variables; the step controls dock at the
+   bottom of the screen (viewport.js moves #controlsPanel into <body>). */
+:root[data-layout="stacked"],
+:root[data-layout="stacked"] body { height: auto; min-height: 100%; }
+:root[data-layout="stacked"] body {
+  padding-bottom: calc(var(--dock-h, 0px) + 8px);
+}
+:root[data-layout="stacked"] main {
+  flex: none;
+  flex-direction: column;
+  padding: 8px;
+  gap: 10px;
+}
+:root[data-layout="stacked"] #divider,
+:root[data-layout="stacked"] #vdivider { display: none; }
+:root[data-layout="stacked"] #left { flex: none; }
+:root[data-layout="stacked"] .editor {
+  flex: none;
+  height: clamp(200px, 40vh, 520px);
+  height: clamp(200px, 40svh, 520px);
+  border-radius: 0 0 9px 9px;
+  overflow: hidden;
+}
+:root[data-layout="stacked"] #right {
+  width: auto !important;          /* beats a split-layout splitter drag */
+  flex: none;
+  gap: 10px;
+}
+:root[data-layout="stacked"] #outputPanel {
+  order: -1;                       /* the visualisation right under the code */
+  flex: none;
+  height: clamp(340px, 68vh, 760px);
+  height: clamp(340px, 68svh, 760px);
+}
+:root[data-layout="stacked"] #varsPanel {
+  height: auto !important;
+  max-height: 45vh !important;
+  max-height: 45svh !important;
+  min-height: 110px;
+}
+
+/* Bottom dock for the step controls */
+#controlsPanel.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  background: var(--panel);
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.18);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+#controlsPanel.dock h2,
+#controlsPanel.dock .legend { display: none; }
+#controlsPanel.dock .body { padding: 8px 10px 4px; gap: 6px; }
+#controlsPanel.dock #stepSlider { margin: 2px 0 4px; }
+
+/* ---- phone ---- */
+:root[data-viewport="phone"] header { padding: 8px 10px; gap: 8px; }
+:root[data-viewport="phone"] header h1 { font-size: 15px; }
+:root[data-viewport="phone"] #status { font-size: 11px; padding: 2px 8px; }
+:root[data-viewport="phone"] .hint { display: none; }
+:root[data-viewport="phone"] #toolbar { padding: 8px; gap: 8px; }
+:root[data-viewport="phone"] #btnVisualize,
+:root[data-viewport="phone"] #btnEdit { padding: 7px 12px; }
+/* Dock: icons only (aria-labels keep the names), one compact row + slider */
+:root[data-viewport="phone"] #controlsPanel.dock .bt { display: none; }
+:root[data-viewport="phone"] #controlsPanel.dock button {
+  padding: 7px 0;
+  min-width: 40px;
+  font-size: 15px;
+}
+:root[data-viewport="phone"] #controlsPanel.dock #playSpeed {
+  padding: 7px 22px 7px 8px;
+  font-size: 13px;
+  background-position: right 7px center;
+}
+:root[data-viewport="phone"] #controlsPanel.dock #stepLabel { font-size: 12px; }
+/* Smaller type inside the visualisers */
+:root[data-viewport="phone"] .tp-strip { font-size: 11px; gap: 8px; }
+:root[data-viewport="phone"] .tp-caption { font-size: 11px; }
+:root[data-viewport="phone"] .tp-marker { font-size: 10px; }
+:root[data-viewport="phone"] .tp-legend,
+:root[data-viewport="phone"] .rt-legend { font-size: 10px; gap: 8px; }
+:root[data-viewport="phone"] .tp-track { padding-top: 26px; }
+:root[data-viewport="phone"] #outputBody,
+:root[data-viewport="phone"] #treeBody { font-size: 12px; line-height: 17px; }
+/* DSA menu: no side flyouts on a phone — sub-menus open inline below */
+:root[data-viewport="phone"] .dsa-options {
+  max-width: calc(100vw - 24px);
+  max-height: 70vh;
+  max-height: 70svh;
+  overflow-y: auto;
+}
+:root[data-viewport="phone"] .dsa-submenu {
+  position: static;
+  min-width: 0;
+  max-height: none !important;
+  margin: 2px 0 4px 14px;
+  padding: 0;
+  border: none;
+  border-left: 2px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-viewport="phone"] .dsa-options li.has-submenu > button::after { content: '▾'; }
+:root[data-viewport="phone"] .dsa-options button { padding: 10px 12px; font-size: 14px; }
+
+/* ---- touch screens: finger-sized targets, no iOS zoom-on-focus ---- */
+:root[data-touch] #stepSlider { height: 28px; }
+:root[data-touch][data-viewport="phone"] .mirror,
+:root[data-touch][data-viewport="phone"] textarea { font-size: 16px; line-height: 24px; }
+:root[data-touch][data-viewport="phone"] .mirror .row { height: 24px; }
+:root[data-touch] .rt-toggle button { padding: 5px 12px; }
+:root[data-touch] .tp-pin-box summary { padding: 4px 9px; }

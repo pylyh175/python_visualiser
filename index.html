@@ -1,119 +1,125 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Python Code Visualiser</title>
-<script>
-/* Dark mode (2026-11-05-dark-mode-design.md Q3): must run BEFORE the
-   stylesheet so first paint is already in the stored/OS theme — main.js is
-   a deferred module that also boots Pyodide, far too late. */
-(() => {
-  try {
-    const saved = localStorage.getItem('viz.theme');
-    if (saved === 'dark' || saved === 'light') {
-      if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
-    } else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.dataset.theme = 'dark';
-    }
-  } catch (err) { /* storage blocked: fall back to light */ }
-})();
-</script>
-<script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Python Code Visualiser</title>
+  <script>
+    /* Dark mode (2026-11-05-dark-mode-design.md Q3): must run BEFORE the
+       stylesheet so first paint is already in the stored/OS theme — main.js is
+       a deferred module that also boots Pyodide, far too late. */
+    (() => {
+      try {
+        const saved = localStorage.getItem('viz.theme');
+        if (saved === 'dark' || saved === 'light') {
+          if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
+        } else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      } catch (err) { /* storage blocked: fall back to light */ }
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-<header>
-  <h1>🐍 Python Code Visualiser</h1>
-  <span id="status">Loading Python runtime…</span>
-  <button id="themeToggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">🌙</button>
-</header>
+  <header>
+    <h1>🐍 Python Code Visualiser</h1>
+    <span id="status">Loading Python runtime…</span>
+    <button id="themeToggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">🌙</button>
+  </header>
 
-<main>
-  <div id="left">
-    <div id="toolbar">
-      <button id="btnVisualize" disabled>▶ Visualize</button>
-      <button id="btnEdit" disabled>✎ Edit</button>
-      <div class="dsa-dropdown" id="dsaDropdown" role="combobox" aria-label="Data structure or algorithm to visualise" aria-expanded="false" aria-haspopup="listbox">
-        <button type="button" class="dsa-trigger" id="dsaTrigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Select algorithm">
-          <span id="dsaLabel">(none / normal run)</span>
-          <span class="dsa-caret">▾</span>
-        </button>
-        <ul class="dsa-options" id="dsaOptions" role="listbox" aria-label="Algorithm options"></ul>
+  <main>
+    <div id="left">
+      <div id="toolbar">
+        <button id="btnVisualize" disabled>▶ Visualize</button>
+        <button id="btnEdit" disabled>✎ Edit</button>
+        <div class="dsa-dropdown" id="dsaDropdown" role="combobox" aria-label="Data structure or algorithm to visualise"
+          aria-expanded="false" aria-haspopup="listbox">
+          <button type="button" class="dsa-trigger" id="dsaTrigger" aria-haspopup="listbox" aria-expanded="false"
+            aria-label="Select algorithm">
+            <span id="dsaLabel">(none / normal run)</span>
+            <span class="dsa-caret">▾</span>
+          </button>
+          <ul class="dsa-options" id="dsaOptions" role="listbox" aria-label="Algorithm options"></ul>
+        </div>
+        <span class="hint">Type or paste Python code, then click Visualize.</span>
       </div>
-      <span class="hint">Type or paste Python code, then click Visualize.</span>
-    </div>
-    <div class="editor">
-      <div class="code-area">
-        <div class="mirror" id="mirror"></div>
-        <textarea id="codeInput" spellcheck="false" wrap="off" autocomplete="off"></textarea>
-      </div>
-    </div>
-
-    <div class="panel" id="controlsPanel">
-      <h2>Execution steps</h2>
-      <div class="body" id="controls">
-        <button id="btnPlay" disabled title="Auto-advance through the steps">⏵ Play</button>
-        <select id="playSpeed" aria-label="Playback speed" title="450 ms per step">
-          <option value="low" title="1000 ms per step">Low</option>
-          <option value="normal" selected title="450 ms per step">Normal</option>
-          <option value="high" title="150 ms per step">High</option>
-        </select>
-        <button id="btnFirst" disabled>⏮ First</button>
-        <button id="btnPrev" disabled>◀ Prev</button>
-        <button id="btnNext" disabled>Next ▶</button>
-        <button id="btnLast" disabled>Last ⏭</button>
-        <span id="stepLabel">Step 0 / 0</span>
-        <input type="range" id="stepSlider" min="0" max="0" value="0" disabled aria-label="Execution step">
-      </div>
-      <div class="legend">
-        <span><span class="dot g">▶</span> line that just executed</span>
-        <span><span class="dot o">▶</span> next line to be executed</span>
-      </div>
-    </div>
-  </div>
-
-  <div id="divider" title="Drag to resize · double-click to reset"></div>
-
-  <div id="right">
-    <div class="panel" id="varsPanel">
-      <div class="vars-head">
-        <h2>Variables</h2>
-        <div class="vars-display">
-          <button id="varsDisplayBtn" aria-expanded="false" title="Display options">Display ▾</button>
-          <div class="vars-display-menu" id="varsDisplayMenu" hidden></div>
+      <div class="editor">
+        <div class="code-area">
+          <div class="mirror" id="mirror"></div>
+          <textarea id="codeInput" spellcheck="false" wrap="off" autocomplete="off"></textarea>
         </div>
       </div>
-      <div id="varsBody"><span class="empty">Run some code first.</span></div>
-    </div>
 
-    <div id="vdivider" title="Drag to resize · double-click to reset"></div>
-
-    <div class="panel" id="outputPanel">
-      <h2 id="outTitle">Output</h2>
-      <div class="outtabs" id="outTabs" hidden>
-        <button type="button" id="tabOut">Output</button>
-        <button type="button" id="tabTwoPtrs" hidden>Two Pointers</button>
-        <button type="button" id="tabReverse" hidden>Reverse Array/String</button>
-        <button type="button" id="tabPalindrome" hidden>Valid Palindrome</button>
-        <button type="button" id="tabContainer" hidden>Container With Most Water</button>
-        <button type="button" id="tabTree">Recursion</button>
-        <button type="button" id="tabStack" hidden>Stack</button>
+      <div class="panel" id="controlsPanel">
+        <h2>Execution steps</h2>
+        <div class="body" id="controls">
+          <button id="btnPlay" disabled title="Auto-advance through the steps" aria-label="Play">⏵<span class="bt">
+              Play</span></button>
+          <select id="playSpeed" aria-label="Playback speed" title="450 ms per step">
+            <option value="low" title="1000 ms per step">Low</option>
+            <option value="normal" selected title="450 ms per step">Normal</option>
+            <option value="high" title="150 ms per step">High</option>
+          </select>
+          <button id="btnFirst" disabled aria-label="First step">⏮<span class="bt"> First</span></button>
+          <button id="btnPrev" disabled aria-label="Previous step">◀<span class="bt"> Prev</span></button>
+          <button id="btnNext" disabled aria-label="Next step"><span class="bt">Next </span>▶</button>
+          <button id="btnLast" disabled aria-label="Last step"><span class="bt">Last </span>⏭</button>
+          <span id="stepLabel"><span class="bt">Step </span>0 / 0</span>
+          <input type="range" id="stepSlider" min="0" max="0" value="0" disabled aria-label="Execution step">
+        </div>
+        <div class="legend">
+          <span><span class="dot g">▶</span> line that just executed</span>
+          <span><span class="dot o">▶</span> next line to be executed</span>
+        </div>
       </div>
-      <div id="outputBody"></div>
-      <div id="treeBody" hidden></div>
-      <div id="stackBody" hidden></div>
-      <div id="twoPtrsBody" hidden></div>
-      <div id="reverseBody" hidden></div>
-      <div id="palindromeBody" hidden></div>
-      <div id="containerBody" hidden></div>
     </div>
-  </div>
-</main>
 
-<!-- Python tracer: lives in runner.py, loaded by main.js at startup. -->
+    <div id="divider" title="Drag to resize · double-click to reset"></div>
 
-<script type="module" src="src/main.js"></script>
+    <div id="right">
+      <div class="panel" id="varsPanel">
+        <div class="vars-head">
+          <h2>Variables</h2>
+          <div class="vars-display">
+            <button id="varsDisplayBtn" aria-expanded="false" title="Display options">Display ▾</button>
+            <div class="vars-display-menu" id="varsDisplayMenu" hidden></div>
+          </div>
+        </div>
+        <div id="varsBody"><span class="empty">Run some code first.</span></div>
+      </div>
+
+      <div id="vdivider" title="Drag to resize · double-click to reset"></div>
+
+      <div class="panel" id="outputPanel">
+        <h2 id="outTitle">Output</h2>
+        <div class="outtabs" id="outTabs" hidden>
+          <button type="button" id="tabOut">Output</button>
+          <button type="button" id="tabTwoPtrs" hidden>Two Pointers</button>
+          <button type="button" id="tabReverse" hidden>Reverse Array/String</button>
+          <button type="button" id="tabPalindrome" hidden>Valid Palindrome</button>
+          <button type="button" id="tabContainer" hidden>Container With Most Water</button>
+          <button type="button" id="tabTree">Recursion</button>
+          <button type="button" id="tabStack" hidden>Stack</button>
+        </div>
+        <div id="outputBody"></div>
+        <div id="treeBody" hidden></div>
+        <div id="stackBody" hidden></div>
+        <div id="twoPtrsBody" hidden></div>
+        <div id="reverseBody" hidden></div>
+        <div id="palindromeBody" hidden></div>
+        <div id="containerBody" hidden></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Python tracer: lives in runner.py, loaded by main.js at startup. -->
+
+  <script type="module" src="src/main.js"></script>
 </body>
+
 </html>

@@ -1,11 +1,10 @@
-/* =============== Recursion tree layout (pure - no DOM) =============== 
+/* ═══════════════ Recursion tree layout (pure — no DOM) ═══════════════
    Compact tidy layout for the graphical recursion tree (2026-11-24 design).
    Children are laid out left → right in call order, each parent centred
    over its first and last child; a per-depth "next free x" contour stops
    subtrees from overlapping (a subtree that would collide is shifted right
-   as a whole). Node widths vary with their labels. O(N^2) worst case for the
-   shifts - fine for the graph view's node cap. 
-*/
+   as a whole). Node widths vary with their labels. O(n²) worst case for
+   the shifts — fine for the graph view's node cap. */
 
 // nodes: [{ id, parent, w }] in call order (a parent always precedes its
 // children). Returns { pos: Map(id → { x, y, depth }), width, height }
@@ -37,7 +36,7 @@ export function layoutTree(nodes, { gapX = 12, levelH = 60 } = {}) {
         for (const c of ch) maxD = Math.max(maxD, place(c, depth + 1));
         let x = ch.length
             ? (pos.get(ch[0].id).x + pos.get(ch[ch.length - 1].id).x) / 2
-            : free(depth) + n.w / 2
+            : free(depth) + n.w / 2;
         const need = free(depth) - (x - n.w / 2);
         if (need > 0) {
             shift(n, need);

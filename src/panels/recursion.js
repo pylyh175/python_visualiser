@@ -17,7 +17,8 @@ import { els } from '../dom.js';
 import { TREE_NODE_CAP, TREE_SVG_CAP } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
 import { layoutTree } from './treeLayout.js';
-import { animMs } from './pointerKit.js';
+import { animMs, requestRender } from './pointerKit.js';
+import { vizScale } from '../viewportClass.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const NODE_H = 36;
@@ -145,7 +146,8 @@ function partial(n, F) {
   const ch = F.kids.get(n.id) || [];
   const got = ch.filter((c) => c.retSet).map((c) => treeValue(c.ret, 8));
   if (!got.length) return '';
-  return `got ${got.join(', ')}${ch.some((c) => !c.retSet) || F.onStack.has(n.id) ? ', …' : ''}`;
+  // "…" only while a child call is still running — results received so far.
+  return `got ${got.join(', ')}${ch.some((c) => !c.retSet) ? ', …' : ''}`;
 }
 
 /* ---------- pane skeleton ---------- */
@@ -209,6 +211,17 @@ function ensureTreeView() {
   view.gNodes.addEventListener('click', goto);
   view.stack.addEventListener('click', goto);
   view.text.addEventListener('click', goto);
+  // A stacked layout fits the tree to the pane width: refit when it changes.
+  if (typeof ResizeObserver !== 'undefined') {
+    const v = view;
+    new ResizeObserver(() => {
+      const w = v.scroll.clientWidth;
+      if (!w || w === v.lastScrollW) return;
+      const first = v.lastScrollW == null;
+      v.lastScrollW = w;
+      if (!first && state.viewport && state.viewport.layout === 'stacked') requestRender();
+    }).observe(v.scroll);
+  }
   return view;
 }
 
@@ -287,6 +300,7 @@ function renderStackColumn(v, F) {
   v.stack.innerHTML = `<div class="rt-stack-title">call stack</div>${rows.join('')}`;
 }
 
+
 /* ---------- graphical tree ---------- */
 
 function svgEl(tag, attrs = {}) {
@@ -309,8 +323,12 @@ function renderGraph(v, F, forward) {
   const order = [...F.nodes.values()].filter((n) => isRoot(n) || F.nodes.has(n.parent));
   const { pos, width, height } = layoutTree(order.map((n) => ({ id: n.id, parent: n.parent, w: info.get(n.id).w })), { gapX: 14, levelH: LEVEL_H });
   const W = Math.ceil(width + PAD * 2), H = Math.ceil(height - LEVEL_H + NODE_H + PAD * 2 + 10);
-  v.svg.setAttribute('width', W);
-  v.svg.setAttribute('height', H);
+  // Device-aware scale (2026-11-24 viewport design): the drawing keeps its
+  // own coordinates (viewBox) and the element is sized by `scale`.
+  const scale = treeScale(v, W);
+  v.scale = scale;
+  v.svg.setAttribute('width', Math.ceil(W * scale));
+  v.svg.setAttribute('height', Math.ceil(H * scale));
   v.svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const P = (id) => { const p = pos.get(id); return p ? { x: p.x + PAD, y: p.y + PAD + 6 } : null; };
 
@@ -427,7 +445,22 @@ function renderGraph(v, F, forward) {
 
   // Keep the active node in view.
   const act = F.activeId != null ? P(F.activeId) : null;
-  if (act) scrollIntoBox(v.scroll, act.x - 80, act.y - 20, act.x + 80, act.y + NODE_H + 30, ms);
+  if (act) {
+    const s = scale;
+    scrollIntoBox(v.scroll, (act.x - 80) * s, (act.y - 20) * s, (act.x + 80) * s, (act.y + NODE_H + 30) * s, ms);
+  }
+}
+
+// Monitors draw the tree a little larger; stacked layouts (phones, upright
+// tablets) shrink a wide tree to fit the pane's width — down to 55%, below
+// which labels stop being readable and horizontal scrolling takes over.
+function treeScale(v, W) {
+  const vp = state.viewport || { device: 'laptop', layout: 'split' };
+  const base = vizScale(vp.device);
+  if (vp.layout !== 'stacked') return base;
+  const avail = v.scroll.clientWidth - 4;
+  if (avail <= 0) return base;
+  return Math.max(0.55, Math.min(base, avail / W));
 }
 
 function scrollIntoBox(sc, x1, y1, x2, y2, ms) {

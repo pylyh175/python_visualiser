@@ -23,7 +23,8 @@ export function render() {
   engageActivePane();
   renderEditor();
   const total = state.steps.length;
-  els.stepLabel.textContent = total ? `Step ${state.idx + 1} / ${total}` : 'Step 0 / 0';
+  // "Step" is a hideable word: the phone dock shows just "3 / 20".
+  els.stepLabel.innerHTML = `<span class="bt">Step </span>${total ? state.idx + 1 : 0} / ${total}`;
   // Playback controls are live whenever a trace exists — including terminal
   // states (successful final step, runtime error, limit stop) — so users can
   // revisit any recorded step; only a real edit resets the run.
@@ -179,6 +180,11 @@ export function renderOutPanel() {
 // through an event, so they never import this module back.
 document.addEventListener('viz:rerender', () => {
   if (state.steps.length && !state.runInProgress) render();
+});
+// The device class or window size changed (viewport.js): measured visuals
+// (cell windows, bar scale, tree fit) recompute for the new size.
+document.addEventListener('viz:viewport', () => {
+  if (!state.runInProgress) render();
 });
 
 els.tabOut.addEventListener('click', () => {
