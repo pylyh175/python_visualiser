@@ -22,7 +22,7 @@ import {
 } from './twoPointers.js';
 
 const CONTAINER_VIS_CAP = 30;
-const BAR_WIDTH = 10;       // fixed thin bar width (matches CSS)
+const BAR_WIDTH = 10;       // fallback bar width; the device class sets --tp-bar-w (viewport design)
 const TOP_BAND = 24;        // above bars: value label (CSS padding-top)
 const BOTTOM_BAND = 18;     // below bars: index label (CSS padding-bottom)
 const PROVISIONAL_AVAIL_H = 200;  // factor stub for renders into a hidden body
@@ -99,7 +99,13 @@ function buildContainer(ctx) {
   const len = arr.length;
   const [roleL, roleR] = pointerRoles(det.leftName, det.rightName);
   const clamp = (x) => Math.max(0, Math.min(len - 1, x));
-  const [startIdx, endIdx] = visibleWindow(len, clamp(l), clamp(r), CONTAINER_VIS_CAP);
+  // Bar width follows the device class (--tp-bar-w: phone 8 · laptop 10 · monitor 16).
+  const barW = parseFloat(getComputedStyle(els.containerBody).getPropertyValue('--tp-bar-w')) || BAR_WIDTH;
+  // Bars that fit the pane at the minimum gap (phones fit fewer than 30).
+  const paneW = (els.containerBody.clientWidth || v.lastWidth || window.innerWidth / 2) - BODY_PAD_H;
+  if (els.containerBody.clientWidth) v.lastWidth = els.containerBody.clientWidth;
+  const barCap = Math.max(8, Math.min(CONTAINER_VIS_CAP, Math.floor((paneW + MIN_GAP) / (barW + MIN_GAP))));
+  const [startIdx, endIdx] = visibleWindow(len, clamp(l), clamp(r), barCap);
 
   // Scale from the array's live height (visible) or a provisional stub.
   const nums = arr.filter((x) => typeof x === 'number');
@@ -112,8 +118,11 @@ function buildContainer(ctx) {
   // Responsive horizontal spacing: gap grows with the tab width.
   const numVisible = endIdx - startIdx;
   const innerW = (els.containerBody.clientWidth || 400) - BODY_PAD_H;
-  const fillGap = Math.floor((innerW - numVisible * BAR_WIDTH) / Math.max(1, numVisible - 1));
-  v.array.style.setProperty('--gap', `${Math.min(MAX_GAP, Math.max(MIN_GAP, fillGap))}px`);
+  const fillGap = Math.floor((innerW - numVisible * barW) / Math.max(1, numVisible - 1));
+  const gap = Math.min(MAX_GAP, Math.max(MIN_GAP, fillGap));
+  v.array.style.setProperty('--gap', `${gap}px`);
+  // Narrow screens: value labels would collide — keep only the pointer bars'.
+  v.array.classList.toggle('tp-tight', gap < 14);
 
   const specs = [];
   for (let i = startIdx; i < endIdx; i++) {
@@ -127,7 +136,7 @@ function buildContainer(ctx) {
     specs.push({
       key: `c${i}`, idx: i, cls: c.join(' '),
       html: `<span class="tp-val">${escapeHtml(fmtValue(val))}</span>`,
-      style: `height: ${hPx}px; width: ${BAR_WIDTH}px;`,
+      style: `height: ${hPx}px; width: ${barW}px;`,
     });
   }
   syncCells(v.array, specs);

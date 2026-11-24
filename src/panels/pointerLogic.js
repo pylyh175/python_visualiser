@@ -146,6 +146,33 @@ export function visibleWindow(len, a, b, cap) {
     return [start, Math.min(len, start + cap)];
 }
 
+// Bands of indices to draw when only `fit` cells fit the pane (2026-11-24
+// viewport design): the whole sequence when it fits, otherwise one window
+// around EACH pointer — merged when they touch — so neither pointer is ever
+// cropped away (a single window lost the far pointer of a converging pair).
+// Returns [[start, end), …] in order; a gap is implied between bands.
+export function pointerBands(len, a, b, fit) {
+    if (len <= 0) return [[0, 0]];
+    if (len <= fit) return [[0, len]];
+    const clamp = (x) => Math.max(0, Math.min(len - 1, x));
+    const lo = clamp(Math.min(a, b)), hi = clamp(Math.max(a, b));
+    // One window holds both pointers (plus a little context) when it can.
+    if (hi - lo + 1 <= fit) {
+        let start = Math.max(0, Math.round((lo + hi + 1) / 2 - fit / 2));
+        if (start + fit > len) start = len - fit;
+        return [[start, start + fit]];
+    }
+    // Two windows; one cell of width is reserved for the gap marker.
+    const per = Math.max(1, Math.floor((fit - 1) / 2));
+    const win = (c) => {
+        let s = Math.max(0, c - Math.floor((per - 1) / 2));
+        if (s + per > len) s = len - per;
+        return [s, s + per];
+    };
+    const A = win(lo), B = win(hi);
+    return A[1] >= B[0] ? [[A[0], Math.max(A[1], B[1])]] : [A, B];
+}
+
 // Indices whose value differs between two snapshots of the same sequence.
 export function changedIndices(prev, cur) {
     if (!prev || !cur || prev.length !== cur.length) return [];

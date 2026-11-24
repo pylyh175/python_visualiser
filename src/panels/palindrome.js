@@ -8,14 +8,13 @@ import { state } from '../state.js';
 import { els } from '../dom.js';
 import { escapeHtml } from '../utils.js';
 import { dsaFamily } from '../config.js';
-import { detectSequencePointers, pointerRoles } from './pointerLogic.js';
-import { syncCells, placeMarkers, cellAt, flash, ptrChip, setCaption, setLegend } from './pointerKit.js';
+import { detectSequencePointers, pointerRoles, pointerBands } from './pointerLogic.js';
+import { syncCells, placeMarkers, cellAt, flash, ptrChip, setCaption, setLegend, gapSpec } from './pointerKit.js';
 import { PTR_NAME_PAIRS, renderPointerPane, frozenCaption, describeMoves } from './twoPointers.js';
 
 export { PTR_NAME_PAIRS };
 
-const PAL_VIS_FULL = 40;   // strings up to this length render UNSPLIT
-const PAL_WINDOW_HALF = 6; // windowed strings: 12 cells per window
+const PAL_VIS_FULL = 40;   // most cells ever drawn (wide monitors); fewer when the pane is narrower
 const INDEX_CAP = 500;     // defensive parity with the runner's string cap
 
 // A string local with two pointer-like int index vars (same naming pairs
@@ -109,20 +108,11 @@ function buildPalindrome(ctx) {
   }
   const atTerm = verdict === false && termPair != null && l === termPair[0] && r === termPair[1];
 
-  // Layout: whole string when short; otherwise two windows around the
-  // pointers, merged when they overlap, with a hide-label between.
-  const cl = Math.max(0, Math.min(len - 1, l)), cr = Math.max(0, Math.min(len - 1, r));
-  const bands = [];
-  if (len <= PAL_VIS_FULL) {
-    bands.push([0, len]);
-  } else {
-    const lEnd = Math.min(len, cl + PAL_WINDOW_HALF + 1);
-    const lStart = Math.max(0, Math.min(cl, lEnd - 1) - PAL_WINDOW_HALF);
-    const rEnd = Math.min(len, cr + PAL_WINDOW_HALF + 1);
-    const rStart = Math.max(0, Math.min(cr, rEnd - 1) - PAL_WINDOW_HALF);
-    if (rStart <= lEnd) bands.push([Math.min(lStart, rStart), Math.max(lEnd, rEnd)]);
-    else bands.push([lStart, lEnd], [rStart, rEnd]);
-  }
+  // Layout: the whole string when it fits the pane; otherwise a window
+  // around each pointer, merged when they meet, with a "…N…" gap between
+  // (shared pointerBands — sized to the screen, 2026-11-24 viewport design).
+  const ghosts = (l === -1 || r === -1 ? 1 : 0) + (l === len || r === len ? 1 : 0);
+  const bands = pointerBands(len, l, r, Math.max(3, Math.min(PAL_VIS_FULL, ctx.fit) - ghosts));
 
   const met = l >= r;
   const ptrCls = (i) => {
@@ -137,9 +127,7 @@ function buildPalindrome(ctx) {
     specs.push({ key: 'ghost-lo', idx: -1, text: '', cls: ['tp-cell', 'tp-ghost', ...ptrCls(-1)].join(' ') });
   }
   bands.forEach(([start, end], b) => {
-    if (b > 0) {
-      specs.push({ key: `gap${b}`, text: `… ${(start - bands[b - 1][1]).toLocaleString()} chars hidden …`, cls: 'pal-gap' });
-    }
+    if (b > 0) specs.push(gapSpec(`gap${b}`, start - bands[b - 1][1], 'characters'));
     for (let i = start; i < end; i++) {
       const c = ['tp-cell', ...ptrCls(i)];
       if (!isAlnum(s[i])) c.push('pal-dim');

@@ -10,12 +10,12 @@ import { escapeHtml, fmtValue } from '../utils.js';
 import { dsaFamily, dsaEntryById } from '../config.js';
 import { hideOutTabsAll } from './shared.js';
 import {
-  PTR_NAME_PAIRS, detectSequencePointers, pointerRoles, visibleWindow,
+  PTR_NAME_PAIRS, detectSequencePointers, pointerRoles, pointerBands,
   changedIndices, cmpSymbol, findNumberLocal,
 } from './pointerLogic.js';
 import {
   ensureView, showMessage, beginFrame, syncCells, placeMarkers, cellAt, flash,
-  ptrChip, setCaption, setLegend, renderPin, onPin,
+  ptrChip, setCaption, setLegend, renderPin, onPin, fitCells, gapSpec,
 } from './pointerKit.js';
 
 export { PTR_NAME_PAIRS };
@@ -116,13 +116,18 @@ export function engagePointerPane(detect, latchKey, tab = null) {
 export const inRange = (arr, i) => i >= 0 && i < arr.length;
 export const valHtml = (arr, i, fmt = fmtValue) => (inRange(arr, i) ? escapeHtml(fmt(arr[i])) : '—');
 
-// Cells for the visible window plus ghost slots (-1 / len) when a pointer
-// has stepped off an end. cellCls(i) adds region classes per index.
-export function buildCells(arr, det, { cap = TWOPTR_VIS_CAP, cellCls = () => [], fmt = fmtValue } = {}) {
+// Cells for the visible bands plus ghost slots (-1 / len) when a pointer
+// has stepped off an end. `fit` = cells that fit the pane (fitCells): the
+// whole sequence when it fits, else a window around EACH pointer with a
+// "…N…" gap between (2026-11-24 viewport design — a single window cropped
+// the far pointer of a converging pair on narrow screens).
+// cellCls(i) adds region classes per index.
+export function buildCells(arr, det, { fit = TWOPTR_VIS_CAP, cellCls = () => [], fmt = fmtValue } = {}) {
   const len = arr.length;
   const l = det.leftIdx, r = det.rightIdx;
-  const clamp = (x) => Math.max(0, Math.min(len - 1, x));
-  const [start, end] = visibleWindow(len, clamp(l), clamp(r), cap);
+  const ghosts = (l === -1 || r === -1 ? 1 : 0) + (l === len || r === len ? 1 : 0);
+  const bands = pointerBands(len, l, r, Math.max(3, Math.min(TWOPTR_VIS_CAP, fit) - ghosts));
+  const start = bands[0][0], end = bands[bands.length - 1][1];
   const [roleL, roleR] = pointerRoles(det.leftName, det.rightName);
   const ptrCls = (i) => {
     const c = [];
@@ -135,9 +140,12 @@ export function buildCells(arr, det, { cap = TWOPTR_VIS_CAP, cellCls = () => [],
   if (start === 0 && (l === -1 || r === -1)) {
     specs.push({ key: 'ghost-lo', idx: -1, text: '', cls: ['tp-cell', 'tp-ghost', ...ptrCls(-1)].join(' '), title: 'one slot before the start — the pointer has left the array' });
   }
-  for (let i = start; i < end; i++) {
-    specs.push({ key: `c${i}`, idx: i, text: fmt(arr[i]), cls: ['tp-cell', ...ptrCls(i), ...cellCls(i)].join(' ') });
-  }
+  bands.forEach(([s, e], b) => {
+    if (b > 0) specs.push(gapSpec(`gap${b}`, s - bands[b - 1][1]));
+    for (let i = s; i < e; i++) {
+      specs.push({ key: `c${i}`, idx: i, text: fmt(arr[i]), cls: ['tp-cell', ...ptrCls(i), ...cellCls(i)].join(' ') });
+    }
+  });
   if (end === len && (l === len || r === len)) {
     specs.push({ key: 'ghost-hi', idx: len, text: '', cls: ['tp-cell', 'tp-ghost', ...ptrCls(len)].join(' '), title: 'one past the end — the pointer has left the array' });
   }
@@ -181,8 +189,10 @@ export function renderPointerPane(body, { detect, kind = 'array', variant = 'cel
   const f = beginFrame(v);
   const prev = prevFrame(detect, frame.frameStep);
   const prevArr = prev ? (kind === 'string' ? prev.detection.arrValue : parseArrayValue(prev.detection.arrValue)) : null;
+  const fit = fitCells(v);
+  v.lastFit = fit;
   build({
-    v, det, arr, frame, prev: prev && prev.detection, prevArr,
+    v, det, arr, frame, prev: prev && prev.detection, prevArr, fit,
     animate: f.newStep && !frame.frozen,          // flashes / pulses
     travel: f.forward && !frame.frozen && f.ms > 0, // flights (single forward step only)
     ms: f.ms,
@@ -194,7 +204,7 @@ export function renderPointerPane(body, { detect, kind = 'array', variant = 'cel
 
 function buildGeneric(ctx) {
   const { v, det, arr, frame, prev } = ctx;
-  const { specs, pointers, roles } = buildCells(arr, det);
+  const { specs, pointers, roles } = buildCells(arr, det, { fit: ctx.fit });
   syncCells(v.array, specs);
   v.strip.innerHTML = `
     <span class="tp-arr">${escapeHtml(det.arrName)}[${arr.length}]</span>
@@ -218,6 +228,7 @@ function buildTwoSum(ctx) {
   const numeric = typeof sum === 'number';
   // Converging search: everything outside [left, right] has been ruled out.
   const { specs, pointers, roles } = buildCells(arr, det, {
+    fit: ctx.fit,
     cellCls: (i) => (l <= r && (i < l || i > r) ? ['tp-out'] : []),
   });
   syncCells(v.array, specs);
@@ -268,6 +279,7 @@ function buildRemoveDuplicates(ctx) {
   const w = writerIsLeft ? det.leftIdx : det.rightIdx;
   const r = writerIsLeft ? det.rightIdx : det.leftIdx;
   const { specs, pointers, roles } = buildCells(arr, det, {
+    fit: ctx.fit,
     cellCls: (i) => (i < w ? ['tp-kept'] : (w <= r && i >= w && i < r ? ['tp-stale'] : [])),
   });
   syncCells(v.array, specs);

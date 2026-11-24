@@ -46,6 +46,7 @@ function buildReverse(ctx) {
   const l = det.leftIdx, r = det.rightIdx;
   const met = l >= r;
   const { specs, pointers, roles } = buildCells(arr, det, {
+    fit: ctx.fit,
     // Outside [left, right] is settled; once the pointers meet, all of it is.
     cellCls: (i) => (met || i < l || i > r ? ['tp-done'] : []),
   });
