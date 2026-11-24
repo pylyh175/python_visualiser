@@ -46,6 +46,7 @@ export const state = {
   pointerHints: null,     // scanPointerHints() result: { seq: [idxName…] } for the running code
   pointerPin: null,       // user-pinned two-pointer names { arr, left, right } (null = auto-detect)
   treeView: 'graph',      // recursion pane view: 'graph' (SVG tree) | 'text' (ASCII tree)
+  viewport: null,         // classifyViewport() result: { device, layout, orientation, short, touch }
   outFam: null,           // which DSA mode the panel rendered last (full id; sub-mode switches also reset the tab choice)
 
   // Editor mirror / caret / glide internals

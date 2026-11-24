@@ -18,7 +18,9 @@ import { initVarsSplitter } from './splitters/vertical.js';
 import { initContainerResize } from './panels/container.js';
 import { buildDsaMenu } from './dsa.js';
 import { initDisplayOptions } from './panels/displayOptions.js';
+import { initViewport } from './viewport.js';
 
+initViewport();
 render();
 init();
 initSplitter();
