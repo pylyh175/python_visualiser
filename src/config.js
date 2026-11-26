@@ -374,7 +374,7 @@ export const DSA_MODES = [
     id: 'dsa', label: 'DSA', folder: true, status: 'ready', subModes: [
       { id: 'stack', label: 'Stack', status: 'ready' },
       { id: 'queue', label: 'Queue', status: 'ready' },
-      { id: 'circular queue', label: 'Circular Queue', status: 'planned' },
+      { id: 'circular queue', label: 'Circular Queue', status: 'ready' },
       { id: 'linked-list', label: 'Linked List', status: 'planned' },
       { id: 'hash-table', label: 'Hash Table', status: 'planned' },
       { id: 'binary-tree', label: 'Binary Tree', status: 'planned' },
