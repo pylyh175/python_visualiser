@@ -9,6 +9,7 @@ import { dsaFamily } from '../config.js';
 import { renderVars } from './variables.js';
 import { renderTree, recursionSeenUpTo } from './recursion.js';
 import { renderStack } from './stack.js';
+import { renderQueuePanel, queueFound } from './queue.js';
 import { renderTwoPointersPanel, engagePointerPane, detectTwoPointers, clearDetectCache } from './twoPointers.js';
 import { renderReversePanel } from './reverse.js';
 import { renderPalindromePanel, detectPalindrome } from './palindrome.js';
@@ -87,6 +88,9 @@ export function renderOutput() {
   if (dsaFamily(state.dsaMode) === 'stack' && state.stackScan && !state.stackScan.found) {
     text += '<span class="info">No Stack found — needs a class with push() and pop().</span>';
   }
+  if (dsaFamily(state.dsaMode) === 'queue' && !queueFound()) {
+    text += '<span class="info">No Queue found — needs a class with an array plus front and rear indices.</span>';
+  }
   els.output.innerHTML = text || '<span style="color:#9ca3af">(no output yet)</span>';
   els.output.scrollTop = els.output.scrollHeight;
 }
@@ -97,7 +101,7 @@ function syncOutFamily() {
   if (state.outFam === state.dsaMode) return;
   state.outFam = state.dsaMode;
   state.outTab = 'out'; state.userTab = false;
-  state.treeAnnounced = false; state.stackAnnounced = false;
+  state.treeAnnounced = false; state.stackAnnounced = false; state.queueAnnounced = false;
   state.twoPointersAnnounced = false;
   state.reverseAnnounced = false;
   state.palindromeAnnounced = false;
@@ -130,7 +134,8 @@ function engageActivePane() {
 }
 
 // The panel shows one tab FAMILY per DSA mode: recursion → Output|Recursion
-// (renderTree), stack → Output|Stack (renderStack), two-pointers →
+// (renderTree), stack → Output|Stack (renderStack), queue → Output|Queue
+// (renderQueuePanel), two-pointers →
 // Output|Two Pointers (renderTwoPointersPanel) or — when the reverse-array
 // sub-mode id is selected — Output|Reverse Array/String (renderReversePanel);
 // blank mode or no trace → plain output without a tab bar. Any DSA change
@@ -144,12 +149,14 @@ export function renderOutPanel() {
   const isContainer = state.dsaMode === 'two-pointers.container-with-most-water';
   els.tabTree.hidden = fam !== 'recursion';
   els.tabStack.hidden = fam !== 'stack';
+  els.tabQueue.hidden = fam !== 'queue';
   els.tabTwoPtrs.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.tabReverse.hidden = fam !== 'two-pointers' || !isReverse;
   els.tabPalindrome.hidden = fam !== 'two-pointers' || !isPalindrome;
   els.tabContainer.hidden = fam !== 'two-pointers' || !isContainer;
   els.treeBody.hidden = fam !== 'recursion';
   els.stackBody.hidden = fam !== 'stack';
+  els.queueBody.hidden = fam !== 'queue';
   els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.reverseBody.hidden = fam !== 'two-pointers' || !isReverse;
   els.palindromeBody.hidden = fam !== 'two-pointers' || !isPalindrome;
@@ -160,15 +167,17 @@ export function renderOutPanel() {
   els.tabOut.classList.toggle('active', state.outTab === 'out');
   els.tabTree.classList.toggle('active', state.outTab === 'tree');
   els.tabStack.classList.toggle('active', state.outTab === 'stack');
+  els.tabQueue.classList.toggle('active', state.outTab === 'queue');
   els.tabTwoPtrs.classList.toggle('active', state.outTab === 'two-pointers');
   els.tabReverse.classList.toggle('active', state.outTab === 'reverse');
   els.tabPalindrome.classList.toggle('active', state.outTab === 'palindrome');
   els.tabContainer.classList.toggle('active', state.outTab === 'container');
-  if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'two-pointers')) {
+  if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'queue' && fam !== 'two-pointers')) {
     hideOutTabsAll(state.dsaMode);
     return;
   }
   if (fam === 'stack') renderStack();
+  else if (fam === 'queue') renderQueuePanel();
   else if (isReverse) renderReversePanel();
   else if (isPalindrome) renderPalindromePanel();
   else if (isContainer) renderContainerPanel();
@@ -199,6 +208,11 @@ els.tabTree.addEventListener('click', () => {
 });
 els.tabStack.addEventListener('click', () => {
   state.outTab = 'stack';
+  if (state.steps.length) state.userTab = true;
+  renderOutPanel();
+});
+els.tabQueue.addEventListener('click', () => {
+  state.outTab = 'queue';
   if (state.steps.length) state.userTab = true;
   renderOutPanel();
 });

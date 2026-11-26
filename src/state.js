@@ -37,6 +37,7 @@ export const state = {
   userTab: false,         // the user picked a tab — keep it for this run
   treeAnnounced: false,   // the one-time auto-switch to the tree happened
   stackAnnounced: false,  // the one-time auto-switch to the stack panel
+  queueAnnounced: false,  // the one-time auto-switch to the queue panel
   twoPointersAnnounced: false, // the one-time auto-advance of the generic two-pointers pane
   reverseAnnounced: false,// the one-time auto-switch to the reverse panel
   palindromeAnnounced: false, // the one-time auto-switch to the palindrome panel
