@@ -1035,7 +1035,8 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 #palindromeBody,
 #containerBody,
 #queueBody,
-#cqueueBody {
+#cqueueBody,
+#llistBody {
   flex: 1 1 auto;       /* grow to fill available space */
   min-height: 0;        /* allow shrinking below min-height */
   overflow-x: auto;     /* horizontal scroll for many bars */
@@ -1846,3 +1847,42 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 .cq-cell.cq-empty { border-style: dashed; }
 /* Ring + strip + legend can exceed a short pane (phones): scroll, don't clip. */
 #cqueueBody { overflow-y: auto; }
+
+/* ── Linked List pane (2026-11-26 linked-list design, grilled Q1–Q12) ──
+   Node boxes `[ data | next ]` on one scrolling row, SVG arrows between
+   them (panels/llist.js drawArrows). A node not linked yet floats above
+   (green); a node just unlinked drops below (red) while the bypass arrow
+   arcs over it. Arrows changed on this step glow. */
+/* .tp-track.ll-track beats the phone / short-screen .tp-track padding: the
+   floating new node needs this headroom on every device. */
+#llistBody .tp-track.ll-track { padding-top: 58px; width: max-content; min-width: 100%; }
+.ll-track .tp-markers { margin-top: 52px; }
+.ll-array { gap: 34px; padding-left: 4px; padding-right: 30px; }
+.ll-array .tp-cell.ll-node {
+  flex: 0 0 auto; min-width: 0; max-width: none; padding: 0;
+  flex-direction: row; align-items: stretch; overflow: visible;
+  transition: transform var(--tp-anim, 320ms) ease, background var(--tp-anim, 320ms),
+              border-color var(--tp-anim, 320ms), opacity var(--tp-anim, 320ms);
+}
+.ll-data { display: flex; align-items: center; justify-content: center; min-width: 34px; padding: 0 8px; }
+.ll-next {
+  display: flex; align-items: center; justify-content: center; width: 22px;
+  border-left: 2px solid #374151; color: #9ca3af; font-size: 11px;
+}
+.ll-node.ll-new { transform: translateY(-50px); border-color: #34d399; background: rgba(52, 211, 153, 0.14); }
+.ll-node.ll-removed { transform: translateY(44px); border-color: #f87171; background: rgba(248, 113, 113, 0.14); opacity: 0.7; }
+.ll-node.ll-new::before, .ll-node.ll-removed::before { content: ''; }
+.ll-array .ll-none { flex: 0 0 auto; min-width: 44px; max-width: none; border-style: dashed; color: #9ca3af; font-size: 11px; }
+.ll-none::before { content: ''; }
+.ll-arrows { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.ll-arrow { fill: none; stroke: #9ca3af; stroke-width: 1.8; }
+.ll-head { fill: #9ca3af; }
+.ll-arrow.ll-arrow-new { stroke: #34d399; stroke-width: 2.6; }
+.ll-head.ll-arrow-new { fill: #34d399; }
+.ll-arrow.ll-arrow-bypass { stroke: #fbbf24; stroke-width: 2.6; }
+.ll-head.ll-arrow-bypass { fill: #fbbf24; }
+.ll-cap-new { color: #34d399; font-weight: 600; }
+.ll-sw-node { background: #1f2937; border-color: #374151; }
+.ll-sw-new { background: rgba(52, 211, 153, 0.2); border-color: #34d399; }
+.ll-sw-removed { background: rgba(248, 113, 113, 0.2); border-color: #f87171; }
+.ll-sw-arrow { background: transparent; border: none; border-top: 2px solid #34d399; height: 0; }
