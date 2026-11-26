@@ -2,7 +2,7 @@
 
 import { state } from '../state.js';
 import { els } from '../dom.js';
-import { STACK_VIS_CAP, STACK_CONTRACT } from '../config.js';
+import { STACK_CAPACITY_NAMES, STACK_CONTRACT } from '../config.js';
 import { escapeHtml, treeValue } from '../utils.js';
 import { hideOutTabsAll } from './shared.js';
 
@@ -171,6 +171,71 @@ function splitTrailerMore(arr) {
   return { items: arr, more: 0 };
 }
 
+// Raw text of one attribute inside the snapshot string
+// "ClassName instance { k: v, items: [...] }". Stops at the next top-level
+// comma or the closing brace, so a list/string value with commas cannot leak
+// into the result. Returns null when the attribute is absent.
+function instanceAttrText(instanceStr, attrName) {
+  if (typeof instanceStr !== 'string') return null;
+  const re = new RegExp(`[{,]\\s*${attrName}\\s*:`);
+  const m = re.exec(instanceStr);
+  if (!m) return null;
+  let i = m.index + m[0].length;
+  while (i < instanceStr.length && /\s/.test(instanceStr[i])) i++;
+  const start = i;
+  let depth = 0;
+  let quote = null;
+  for (; i < instanceStr.length; i++) {
+    const ch = instanceStr[i];
+    if (quote) {
+      if (ch === '\\') i++;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '[' || ch === '{' || ch === '(') depth++;
+    else if (ch === ']' || ch === '}' || ch === ')') {
+      if (depth === 0) break;   // the instance's own closing brace
+      depth--;
+    } else if (ch === ',' && depth === 0) break;
+  }
+  return instanceStr.slice(start, i).trim();
+}
+
+// A capacity must be a genuine int > 0. Snapshot text is checked as source
+// text (so "3", 3.0 and True never pass); a local is already a JSON value.
+function capacityFromText(raw) {
+  return raw != null && /^\d+$/.test(raw) && Number(raw) > 0 ? Number(raw) : null;
+}
+function capacityFromLocal(v) {
+  return typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null;
+}
+
+// The user's capacity, or null when unknown (2026-11-26 capacity design,
+// grilled Q10, Q12, Q13). Precedence: the snapshot's capacity attribute
+// (first name present wins; an invalid value means unknown, not "try the
+// next name"), then the `__init__` frame's capacity local while that class's
+// own `__init__` is the recorded top frame. `oid` scopes the local to one
+// instance in the multi path.
+function stackCapacity(instanceStr, det, oid = null) {
+  for (const name of STACK_CAPACITY_NAMES) {
+    const raw = instanceAttrText(instanceStr, name);
+    if (raw !== null) return capacityFromText(raw);
+  }
+  const init = det.methods.init;
+  if (!init) return null;
+  const step = state.steps[state.idx] || {};
+  const frames = step.stack || [];
+  const top = frames[frames.length - 1];
+  if (!top || top.fn !== init.name || top.sig !== init.line) return null;
+  if (oid !== null && top.oid !== oid) return null;
+  const locals = step.locals || {};
+  for (const name of STACK_CAPACITY_NAMES) {
+    if (Object.prototype.hasOwnProperty.call(locals, name)) return capacityFromLocal(locals[name]);
+  }
+  return null;
+}
+
 // Multi-instance (2026-11-05-stack-multi-instance-design.md, grilled Q2–Q5):
 // each instance of the tracked class becomes its own figure, in
 // first-recorded construction order. Identity is the runner's per-frame
@@ -249,11 +314,14 @@ function renderStackMulti(figs, det) {
     const hiddenMore = actual.more;
     const cells = actual.items.map((v, i) => ({ v, start: -1, id: fig.oid + ':actual-' + i }));
     // Growth (2026-11-05 dynamic-growth design Q1–Q3): EVERY recorded item
-    // draws — bigger figures grow beyond the 8-slot minimum (their own
-    // growth, independent of the other figures), and the tracer's sentinel
-    // count keeps the strip honest about the hidden top (Q4/Q5).
+    // draws; the tracer's sentinel count keeps the strip honest about the
+    // hidden top (Q4/Q5). Capacity (2026-11-26 design): at most ONE dashed
+    // box rides above the content, and only while this instance has room —
+    // a full figure draws none, an unknown capacity always draws one.
     const totalSize = cells.length + hiddenMore;
-    const slotRows = Math.max(STACK_VIS_CAP, cells.length);   // min slot count for ≤8
+    const capacity = stackCapacity(fig.selfStr, det, fig.oid);
+    const hasRoom = capacity === null || totalSize < capacity;
+    const slotRows = cells.length + (hasRoom ? 1 : 0);
     const visibleCells = cells;
 
     // Enter/leave per figure — the exact solo derivation (current top id
@@ -278,9 +346,8 @@ function renderStackMulti(figs, det) {
     const slotHtml = [];
     for (let row = slotRows - 1; row >= 0; row--) {
       // Filled slot: row (slotRows-1) → visibleCells[0], the row above →
-      // visibleCells[1], …; beyond the content → empty slots (only ever
-      // shown while the figure is ≤ STACK_VIS_CAP — grown figures have
-      // exactly their content height, no filler).
+      // visibleCells[1], …; at most one row sits beyond the content — the
+      // dashed "room left" box.
       const cellIdx = (slotRows - 1) - row;
       if (cellIdx >= visibleCells.length) {
         slotHtml.push(`<div class="sbox sbox-empty"></div>`);
@@ -302,7 +369,7 @@ function renderStackMulti(figs, det) {
       slotHtml.push(`<div class="sbox-cap">… +${hiddenMore} more — tracer records the first 100</div>`);
     }
 
-    const strip = [`size: ${size}${hiddenMore > 0 ? ' (tracer-capped)' : ''}`,
+    const strip = [`size: ${size}${capacity !== null ? ' / ' + capacity : ''}${hiddenMore > 0 ? ' (tracer-capped)' : ''}`,
     size === 0 ? '(empty)' : 'has items'];
     if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
 
@@ -351,10 +418,12 @@ export function renderStack() {
   }
 
   // NOW: overwrite cell values with the ACTUAL stack contents from locals
-  // at the current step. This is the ground truth.
+  // at the current step. This is the ground truth. The same snapshot also
+  // carries the user's capacity (with the __init__ local as fallback).
+  let instanceStr = null;
   if (det.instanceVar) {
     const locals = state.steps[state.idx]?.locals || {};
-    const instanceStr = locals[det.instanceVar];
+    instanceStr = locals[det.instanceVar];
     if (instanceStr) {
       const actualStack = splitTrailerMore(parseInstanceAttr(instanceStr, det.attrName));
       hiddenMore = actualStack.more;
@@ -363,11 +432,14 @@ export function renderStack() {
     }
   }
 
-  // Growth (2026-11-05 dynamic-growth design Q1–Q6): EVERY recorded item
-  // draws — the figure grows beyond the 8-slot minimum instead of losing
-  // bottom items; the tracer's own 100-item cap is the only ceiling.
+  // Growth (2026-11-05 design): EVERY recorded item draws; the tracer's own
+  // 100-item cap is the only ceiling. Capacity (2026-11-26 design): at most
+  // ONE dashed box rides above the content, and only while the stack has
+  // room — full draws none, unknown capacity always draws one.
   const totalSize = cells.length + hiddenMore;
-  const slotRows = Math.max(STACK_VIS_CAP, cells.length);   // ≤8 keeps exactly today's figure
+  const capacity = stackCapacity(instanceStr, det);
+  const hasRoom = capacity === null || totalSize < capacity;
+  const slotRows = cells.length + (hasRoom ? 1 : 0);
   const visibleCells = cells;
 
   // Track enter/leave by comparing with the previous step's cells.
@@ -406,12 +478,12 @@ export function renderStack() {
   const figs = collectStackFigures(state.idx, det);
   if (figs.length > 1) return renderStackMulti(figs, det);
 
-  // Build the visual stack: at least STACK_VIS_CAP slots; once the content
-  // exceeds the minimum the figure grows to its content height. The BOTTOM
-  // visual rows (highest row index) hold the OLDEST items (bottom of the
-  // stack); the newest item lands directly on top — LIFO.
+  // Build the visual stack: exactly the content plus (at most) one dashed
+  // box. The BOTTOM visual rows (highest row index) hold the OLDEST items
+  // (bottom of the stack); the newest item lands directly on top — LIFO.
   const size = totalSize;
-  const strip = ['size: ' + size + (hiddenMore > 0 ? ' (tracer-capped)' : ''),
+  const strip = ['size: ' + size + (capacity !== null ? ' / ' + capacity : '')
+    + (hiddenMore > 0 ? ' (tracer-capped)' : ''),
   size === 0 ? '(empty)' : 'has items'];
   if (lastRet) strip.push(`last: ${det.methods[lastRet.key].name}() → ${treeValue(lastRet.value, 40)}`);
   if (inits > 1) strip.push(`${inits} Stack instances — ops combined in call order`);
@@ -419,12 +491,12 @@ export function renderStack() {
   const slotHtml = [];
   for (let row = slotRows - 1; row >= 0; row--) {
     // Filled slot: row (slotRows-1) → visibleCells[0], the row above →
-    // visibleCells[1], …; beyond the content → empty slots (only ever shown
-    // while the figure is ≤ STACK_VIS_CAP: grown figures have exactly their
-    // content height, no filler — grilled Q3).
+    // visibleCells[1], …; at most one row sits beyond the content — the
+    // dashed "room left" box.
     const cellIdx = (slotRows - 1) - row;
     if (cellIdx >= visibleCells.length) {
-      // Empty slot above the stack
+      // One dashed box above the stack (only when the capacity has room or
+      // is unknown — a full stack draws none).
       slotHtml.push(`<div class="sbox sbox-empty"></div>`);
     } else {
       const cell = visibleCells[cellIdx];

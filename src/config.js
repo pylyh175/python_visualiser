@@ -275,11 +275,18 @@ export const TREE_NODE_CAP = 20000;   // nodes drawn; overflow becomes a summary
 export const TREE_SVG_CAP = 250;      // graphical (SVG) tree limit; bigger trees use the text view
 
 // ── Stack visualiser (2026-11-03-stack-visualiser-design.md) ──
-// Minimum slot count: a figure with ≤ this many items always draws exactly
-// this many slots (bottom-up, dashed empties above). Beyond it the figure
-// GROWS to its content height (2026-11-05-stack-dynamic-growth-design.md,
-// grilled Q1–Q6) — this constant is the floor, not a cap.
-export const STACK_VIS_CAP = 8;
+// Capacity-driven figure (2026-11-26 capacity design, grilled Q1–Q15): the
+// instance's own capacity decides whether ONE dashed "room left" box is
+// drawn above the content — the figure never pads out to the capacity.
+// Sources, in order: the instance snapshot's capacity attribute (first name
+// present in this list), then the `__init__` frame's local while that frame
+// is the recorded top (same `sig` match as stackOpKey), then unknown.
+// Only a genuine int > 0 counts: strings, floats, booleans (True is an int in
+// Python) and 0/negative values all mean unknown.
+export const STACK_CAPACITY_NAMES = [
+  'max_capacity', 'capacity', 'max_size', 'maxsize', 'cap', 'limit',
+  '_max_capacity', '_capacity', '_cap',
+];
 // Contract C (grilled): a user-defined class qualifies with `push` + `pop`;
 // optional ops degrade gracefully — a missing method simply never matches a
 // frame, its visual never appears. Each method is recorded with the def's
