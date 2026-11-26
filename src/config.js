@@ -511,7 +511,7 @@ export const DSA_MODES = [
       { id: 'stack', label: 'Stack', status: 'ready' },
       { id: 'queue', label: 'Queue', status: 'ready' },
       { id: 'circular queue', label: 'Circular Queue', status: 'ready' },
-      { id: 'linked-list', label: 'Linked List', status: 'planned' },
+      { id: 'linked-list', label: 'Linked List', status: 'ready' },
       { id: 'hash-table', label: 'Hash Table', status: 'planned' },
       { id: 'binary-tree', label: 'Binary Tree', status: 'planned' },
       { id: 'binary-search-tree', label: 'Binary Search Tree(BST)', status: 'planned' },
