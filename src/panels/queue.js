@@ -25,7 +25,7 @@ const SIZE_NAMES = ['length', 'size', 'count', 'n'];
 
 // The queue held by one step's memory graph: the instance node `oid` (or,
 // with oid null, the first instance that qualifies).
-function queueIn(step, oid) {
+export function queueIn(step, oid) {
   const mem = step && step.mem;
   if (!mem || !mem.nodes) return null;
   const ids = oid != null ? [String(oid)] : Object.keys(mem.nodes);
@@ -54,6 +54,7 @@ function queueIn(step, oid) {
       oid: id, cls: node.cls, arrName, arr,
       frontName, rearName, front: attrs.get(frontName), rear: attrs.get(rearName),
       size: sizeName ? attrs.get(sizeName) : attrs.get(rearName) - attrs.get(frontName),
+      sizeName,   // null: size above is the linear rear - front guess
       varName: roots.find((k) => k !== 'self') || null,
     };
   }
@@ -63,7 +64,7 @@ function queueIn(step, oid) {
 // Run-level facts, cached per trace: the locked queue oid, its first step,
 // and every recorded frame that ran ON it (id -> {fn, args}).
 let cache = { steps: null };
-function runFacts() {
+export function runFacts() {
   if (cache.steps === state.steps) return cache;
   let oid = null, first = -1;
   for (let i = 0; i < state.steps.length && oid === null; i++) {
@@ -83,7 +84,7 @@ function runFacts() {
 }
 
 // The queue at step i (held from the last step that recorded it).
-function queueAt(i, facts) {
+export function queueAt(i, facts) {
   for (let s = i; s >= facts.first && s >= 0; s--) {
     const q = queueIn(state.steps[s], facts.oid);
     if (q) return q;
@@ -97,20 +98,40 @@ export function queueFound() {
 }
 
 // Python spelling for booleans (the tracer's JSON says true/false).
-const val = (x) => escapeHtml(typeof x === 'boolean' ? (x ? 'True' : 'False') : treeValue(x, 24));
+export const val = (x) => escapeHtml(typeof x === 'boolean' ? (x ? 'True' : 'False') : treeValue(x, 24));
 const callText = (c) => {
   const args = Object.entries(c.args).filter(([k]) => k !== 'self').map(([k, x]) => `${k}=${treeValue(x, 16)}`);
   return `${c.fn}(${args.join(', ')})`;
 };
 
 // What the last executed line did, in queue terms (most specific first).
-function describe(q, prevQ, step, facts) {
+// circular (2026-11-26 circular-queue design, Q5–Q6): pointer moves show
+// their modulo arithmetic, and front == rear gets the empty-or-full callout.
+export function describeQueue(q, prevQ, step, facts, circular = false) {
+  const text = describeStep(q, prevQ, step, facts, circular);
+  if (!circular || q.front !== q.rear) return text;
+  const verdict = q.sizeName
+    ? `${escapeHtml(q.sizeName)} = ${q.size} → <b>${q.size ? 'full' : 'empty'}</b>`
+    : 'no length counter — the pointers alone cannot tell';
+  return `${text}${text ? '<br>' : ''}<span class="tp-cap-warn">${escapeHtml(q.frontName)} == ${escapeHtml(q.rearName)} — empty or full? ${verdict}</span>`;
+}
+
+// "rear = (3 + 1) % 4 = 0 ↺ wrapped" for a +1 move, else "rear 3 → 0".
+function modMove(name, from, to, cap) {
+  if (to !== (from + 1) % cap) return `${escapeHtml(name)} ${from} → ${to}`;
+  return `${escapeHtml(name)} = (${from} + 1) % ${cap} = <b>${to}</b>${to < from ? ' <span class="tp-cap-warn">↺ wrapped</span>' : ''}`;
+}
+
+function describeStep(q, prevQ, step, facts, circular) {
   const i0 = (name) => `${escapeHtml(q.arrName)}[${name}]`;
+  const cap = q.arr.length;
   for (const x of step.exc || []) {
     const c = facts.calls.get(x.id);
     if (!c) continue;
     let why = '';
-    if (q.rear >= q.arr.length && q.front > 0) {
+    if (circular && q.size >= cap) {
+      why = ` — ${escapeHtml(q.sizeName || 'size')} ${q.size} == capacity ${cap}`;
+    } else if (!circular && q.rear >= q.arr.length && q.front > 0) {
       why = ` — only ${q.size} item${q.size === 1 ? '' : 's'} queued, but ${escapeHtml(q.rearName)} hit the end of the array`;
     }
     return `<span class="q-cap-err">✗ ${escapeHtml(callText(c))} raised ${escapeHtml(x.exc)}${why}</span>`;
@@ -137,10 +158,15 @@ function describe(q, prevQ, step, facts) {
       moves.push(`new array of ${q.arr.length} slots`);
     }
     if (prevQ.front !== q.front) {
-      moves.push(`${escapeHtml(q.frontName)} ${prevQ.front} → ${q.front}`
-        + (q.front > prevQ.front ? ` (slot ${prevQ.front} is freed — a linear queue never reuses it)` : ''));
+      moves.push(circular ? modMove(q.frontName, prevQ.front, q.front, cap)
+        : `${escapeHtml(q.frontName)} ${prevQ.front} → ${q.front}`
+          + (q.front > prevQ.front ? ` (slot ${prevQ.front} is freed — a linear queue never reuses it)` : ''));
     }
-    if (prevQ.rear !== q.rear) moves.push(`${escapeHtml(q.rearName)} ${prevQ.rear} → ${q.rear}`);
+    if (prevQ.rear !== q.rear) {
+      moves.push(circular ? modMove(q.rearName, prevQ.rear, q.rear, cap)
+        : `${escapeHtml(q.rearName)} ${prevQ.rear} → ${q.rear}`);
+    }
+    if (circular && prevQ.size !== q.size) moves.push(`${escapeHtml(q.sizeName || 'size')} ${prevQ.size} → ${q.size}`);
     if (moves.length) return moves.join(' · ');
   }
   const top = (step.stack || [])[(step.stack || []).length - 1];
@@ -149,7 +175,10 @@ function describe(q, prevQ, step, facts) {
   // Nothing changed: say what the next operations would do.
   const next = [];
   next.push(q.size ? `serve() would take <b>${val(q.arr[q.front])}</b> from ${i0(q.front)}` : 'empty — serve() would raise');
-  next.push(q.rear < q.arr.length ? `append() would store at ${i0(q.rear)}` : `append() would raise — ${escapeHtml(q.rearName)} is past the end`);
+  const full = circular ? q.size >= cap : q.rear >= cap;
+  next.push(!full ? `append() would store at ${i0(q.rear)}`
+    : circular ? 'append() would raise — the queue is full'
+      : `append() would raise — ${escapeHtml(q.rearName)} is past the end`);
   return `<span class="tp-cap-muted">${next.join(' · ')}</span>`;
 }
 
@@ -216,7 +245,7 @@ export function renderQueuePanel() {
     <span class="tp-ptr tp-role-text-right">${escapeHtml(q.rearName)}=${q.rear} <span class="tp-ptr-val">(${full ? 'past the end' : 'next free slot'})</span></span>
     ${badges.join(' ')}`;
 
-  setCaption(v, describe(q, prevQ, step, facts));
+  setCaption(v, describeQueue(q, prevQ, step, facts));
   setLegend(v, [
     ['q-sw-dir', 'FIFO: append at rear, serve from front ·'],
     ['q-sw-live', 'queued (served from front)'],
