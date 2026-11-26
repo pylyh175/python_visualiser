@@ -1033,7 +1033,8 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
    these fall back to the .panel white (--panel: #ffffff). */
 #reverseBody,
 #palindromeBody,
-#containerBody {
+#containerBody,
+#queueBody {
   flex: 1 1 auto;       /* grow to fill available space */
   min-height: 0;        /* allow shrinking below min-height */
   overflow-x: auto;     /* horizontal scroll for many bars */
@@ -1774,3 +1775,28 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 :root[data-touch][data-viewport="phone"] .mirror .row { height: 24px; }
 :root[data-touch] .rt-toggle button { padding: 5px 12px; }
 :root[data-touch] .tp-pin-box summary { padding: 4px 9px; }
+/* ── Queue pane (2026-11-26 queue design) ──
+   Linear array queue on the two-pointer kit: queued items solid, slots
+   freed at the front HATCHED (served, never reused — the "false full"
+   lesson), room at the rear dashed. Values stored at the rear drop in;
+   served values fly out (panels/queue.js flyOut). */
+.q-live  { background: #1e3a5f; border-color: #60a5fa; color: #f9fafb; }
+.q-freed {
+  background: repeating-linear-gradient(135deg, #1f2937 0 5px, #374151 5px 7px);
+  border-color: #4b5563;
+  border-style: dashed;
+  color: #6b7280;
+}
+.q-empty { background: transparent; border-style: dashed; border-color: #4b5563; color: #6b7280; }
+.q-enter { animation: qEnter var(--tp-anim, 320ms) ease-out; }
+@keyframes qEnter {
+  from { transform: translateY(-14px); opacity: 0.2; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.q-cap-err { color: #f87171; font-weight: 600; }
+/* rear past the end: not a slot, just where the pointer sits */
+.tp-ghost.q-end { border-color: transparent; color: #6b7280; font-size: 10px; font-style: italic; }
+.q-sw-dir { display: none; }
+.q-sw-live  { background: #1e3a5f; border-color: #60a5fa; }
+.q-sw-freed { background: repeating-linear-gradient(135deg, #1f2937 0 3px, #4b5563 3px 5px); border-style: dashed; border-color: #6b7280; }
+.q-sw-empty { background: transparent; border-style: dashed; border-color: #6b7280; }
