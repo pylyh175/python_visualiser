@@ -43,6 +43,7 @@ export const state = {
   containerAnnounced: false,  // the one-time auto-switch/advance to the container pane
   lastValidFrame: -1,     // the step whose algorithm frame rendered last — frozen later when a step doesn't touch it (2026-11-06 persistent-animation design)
   stackScan: null,        // scanStackSource() result for the running code
+  defs: null,             // runner's run-level definition metadata (class cards)
   pointerHints: null,     // scanPointerHints() result: { seq: [idxName…] } for the running code
   pointerPin: null,       // user-pinned two-pointer names { arr, left, right } (null = auto-detect)
   treeView: 'graph',      // recursion pane view: 'graph' (SVG tree) | 'text' (ASCII tree)

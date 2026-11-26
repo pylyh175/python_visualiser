@@ -31,6 +31,7 @@ export function resetRun() {
   state.containerAnnounced = false;
   state.lastValidFrame = -1;
   state.stackScan = null;
+  state.defs = null;
   state.pointerHints = null;
   clearDetectCache();
   render();
@@ -88,6 +89,7 @@ els.visualize.addEventListener('click', async () => {
 
     state.programOutput = result.output || '';
     state.steps = result.steps || [];
+    state.defs = result.defs || null;
     state.stoppedRun = !!result.stopped;
 
     if (result.error) {
