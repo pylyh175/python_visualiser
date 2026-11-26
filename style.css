@@ -852,7 +852,30 @@ textarea[readonly] {
 #varsBody td.k { color: var(--accent); white-space: nowrap; }
 #varsBody td.v { color: var(--text-body); word-break: break-all; white-space: pre-wrap; min-width: 0; }
 #varsBody .empty { color: var(--muted); padding: 4px 12px; font-size: 13px; }
-#varsBody tr.sub td.k { padding-left: 30px; }
+/* ── Class cards + call facts (2026-11-26 class-card design, grilled Q1–Q12) ──
+   A class renders as one card spanning both columns: header `class Stack ·
+   instances: s`, then attribute and method rows in their own name/value
+   grid. Method and function rows carry call facts: ×N calls, → last return
+   (green) or ✗ exception (red), and a running (green) / waiting (orange)
+   marker that also tints the row. */
+#varsBody td.cc { grid-column: 1 / -1; padding: 4px 12px; }
+#varsBody .ccard {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  padding-bottom: 2px;
+}
+#varsBody .cc-head { padding: 4px 10px; color: var(--muted); border-bottom: 1px solid var(--border); }
+#varsBody .cc-head b { color: var(--accent); }
+#varsBody .ccard td { padding: 2px 10px; }
+#varsBody .fn-calls { color: var(--muted); margin-right: 8px; }
+#varsBody .fn-ret { color: var(--green); }
+#varsBody .fn-exc { color: var(--red); }
+#varsBody .fn-live { font-size: 11px; padding: 0 5px; border-radius: 3px; margin-right: 8px; white-space: nowrap; }
+#varsBody .fn-run { background: var(--green-bg); color: var(--green); }
+#varsBody .fn-wait { background: var(--orange-bg); color: var(--orange); }
+#varsBody tr.fn-row-run td { background: var(--green-bg); }
+#varsBody tr.fn-row-wait td { background: var(--orange-bg); }
 
 /* ── Boxes-and-arrows memory diagram (2026-11-15, grilled Q1–Q9) ──
    Container/instance values in the variables panel render as boxes instead

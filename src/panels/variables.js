@@ -50,18 +50,27 @@ export function renderVars() {
   // object) renders the aliasing arrow instead of a duplicate box.
   const rendered = new Map();   // oid → label of its canonical box
   const path = [];              // oids currently being drawn (cycle detection)
-  const sub = new Set();        // method rows nested under their class row
-  const rows = groupMethods(names, valueOf, ownerCand, sub).map((k) => {
-    const live = hasOwn(vars, k);
+  const stats = callStats();
+  // One data row: the name and its value (boxes for containers/instances).
+  const valueCell = (k) => {
     const value = valueOf(k);
     // A persisted (scope-ended) container keeps the diagram of the step its
     // last-shown value came from — same discipline as lastShown values.
-    const m = live ? mem : (lastMem.get(k) || null);
+    const m = hasOwn(vars, k) ? mem : (lastMem.get(k) || null);
     const text = escapeHtml(fmtValue(value));
-    const tr = sub.has(k) ? '<tr class="sub">' : '<tr>';
     // The loop-variable label is static (code-derived, see loopVarFor), so
     // every row — live or persisted — gets the same constant label.
-    return `${tr}<td class="k">${escapeHtml(k)}</td><td class="v">${memCell(k, value, m, text, rendered, path, loopVarFor(k))}</td></tr>`;
+    return memCell(k, value, m, text, rendered, path, loopVarFor(k));
+  };
+  const rows = classLayout(names, valueOf, ownerCand).map((it) => {
+    if (it.card) return classCard(it, names, valueOf, valueCell, stats);
+    const k = it.name;
+    // A function row (Q6): its text plus the same call facts as a method.
+    const meta = fnMeta(valueOf(k));
+    const live = meta ? stats.live.get(meta.line) : null;
+    const tr = live ? `<tr class="fn-row-${live}">` : '<tr>';
+    const v = valueCell(k) + (meta ? ' ' + fnFacts(meta, stats) : '');
+    return `${tr}<td class="k">${escapeHtml(k)}</td><td class="v">${v}</td></tr>`;
   }).join('');
   stashScroll();
   els.vars.innerHTML = `<table>${rows}</table>`;
@@ -385,9 +394,9 @@ function memValue(v, nodes, rendered, path, depth) {
 // A def-after-code inserts at the bottom of the definition block, pushing
 // the data block down — accepted (grilled Q4); defs-at-top is the norm.
 //
-// Methods group under their owner class (2026-11-15, grilled Q1–Q6): the
-// class row keeps its definition-block position and its methods render as
-// indented sub-rows directly beneath it — see groupMethods below.
+// Classes render as cards (2026-11-26, superseding the 2026-11-15 method
+// sub-rows): the card keeps the class row's definition-block position and
+// absorbs its method and attribute rows — see classLayout below.
 //
 // Scope-ended persistence: a name whose frame has returned
 // (its locals left the runner's snapshots — Python scope semantics) STAYS
@@ -408,8 +417,7 @@ function collectVars(current) {
   // the first value a name ever showed with a `Cls.` qualname prefix names
   // its owner class. Sticky once-ever (same discipline as isDef) so a
   // method rebound to data keeps its group. Membership is decided at
-  // render time: the group only engages when the owner row exists and is
-  // still a class row (groupMethods below).
+  // render time (classLayout below).
   const ownerCand = new Map();
   let seq = 0;
   for (let i = 0; i <= state.idx && i < state.steps.length; i++) {
@@ -437,47 +445,173 @@ function collectVars(current) {
   };
 }
 
-// Methods nested under their owner class row (2026-11-15, grilled Q1–Q6).
 // Class-body methods reach the panel as sticky rows with EARLIER slots than
 // their class (the class only enters the globals snapshot when its body
-// finishes), so first-appearance order alone shows `push, pop, Stack` —
-// exactly the user's report. Fix: the class row keeps its place in the
-// definition block and its methods render directly beneath it (slot order
-// inside the group). Membership (grilled Q4): the owner candidate must
-// match a row that exists AND is still a class row — a method whose owner
-// row is absent renders ungrouped in slot order. A data string sharing a
-// class's name prefix (the accepted false positive already lives in the
-// definition block) would nest under it — harmless, requires same-name
-// coexistence in one program. During the class body (grilled Q3) no class
-// row exists yet, so the methods show ungrouped at the top — grouping
-// kicks in the moment the class row appears, and stays for the rest of
-// the run (incl. the synthetic final step, where sticky methods ride
-// above the class's globals row). Multiple classes (grilled Q5): each
-// group rides directly under its owner, owners in their own slot order.
-// `sub` collects the method names for the indented sub-row rendering.
+// finishes); classLayout pulls them into the class card at the class row's
+// slot, so first-appearance order never shows `push, pop, Stack`.
 function looksLikeClass(v) {
   return typeof v === 'string' && /^[A-Za-z_][A-Za-z0-9_]* \{/.test(v);
 }
 
-function groupMethods(names, valueOf, ownerCand, sub) {
-  const isClass = (k) => looksLikeClass(valueOf(k));
-  const owner = new Map();
-  for (const k of names) {
-    const cls = ownerCand.get(k);
-    if (cls && cls !== k && names.includes(cls) && isClass(cls)) owner.set(k, cls);
+/* ═══ Class cards (2026-11-26 class-card design, grilled Q1–Q12) ═══
+   Each class declared in the run's source renders as ONE card instead of
+   the `Stack { … }` string plus `Stack.push(self, item)` rows:
+     header  `class Stack · instances: s` (Q3; `self` excluded)
+     rows    class attributes first (Q11, live values from the runner),
+             then every method in source order (Q4, `__init__` included)
+             as `push(item)` + call facts (Q2).
+   Card membership comes from the runner's run-level `defs` (AST of the
+   source): methods = `Cls.name` qualnames, attributes = classAttrs[Cls].
+   While the class body still runs (no class row yet) a provisional
+   `(defining…)` card holds the members defined so far (Q7). Classes not
+   declared in the source (imports) keep the plain text row. Always open,
+   no fold (Q12).
+   shortcut: rows are matched by NAME, so a module variable sharing a class
+   attribute/method name folds into the card; upgrade when the runner tags
+   class-body rows with their owner. */
+
+// Class name -> { attrs, methods: [{name, qn}] } from the run's defs.
+function sourceClasses() {
+  const defs = state.defs || {};
+  const out = new Map();
+  for (const cls of Object.keys(defs.classAttrs || {})) {
+    out.set(cls, { attrs: defs.classAttrs[cls] || [], methods: [] });
   }
-  if (!owner.size) return names;
+  for (const qn of Object.keys(defs.fns || {})) {
+    const dot = qn.lastIndexOf('.');
+    const cls = dot > 0 ? qn.slice(0, dot) : null;
+    if (cls && out.has(cls)) out.get(cls).methods.push({ name: qn.slice(dot + 1), qn });
+  }
+  return out;
+}
+
+// Panel layout: plain rows ({name}) and cards ({card, cls, provisional,
+// members}) in panel order. A card sits at its class row; a provisional
+// card at its first member's slot.
+function classLayout(names, valueOf, ownerCand) {
+  const classes = sourceClasses();
+  const isClassRow = (k) => classes.has(k) && looksLikeClass(valueOf(k));
+  const memberOf = new Map();   // row name -> owning class
+  for (const [cls, c] of classes) {
+    const own = new Set([...c.attrs, ...c.methods.map((m) => m.name)]);
+    for (const k of names) {
+      if (k === cls || memberOf.has(k)) continue;
+      if (ownerCand.get(k) === cls || own.has(k)) memberOf.set(k, cls);
+    }
+  }
+  // The class body executing right now (its frame is the recorded top).
+  const cur = state.steps[Math.min(state.idx, state.steps.length - 1)] || {};
+  const top = (cur.stack || [])[(cur.stack || []).length - 1];
+  const defining = top && !cur.finished ? top.fn : null;
   const out = [];
+  const placed = new Set();
   for (const k of names) {
-    if (owner.has(k)) continue;   // methods emit only under their class
-    out.push(k);
-    if (isClass(k)) {
-      for (const m of names) {
-        if (owner.get(m) === k) { out.push(m); sub.add(m); }
-      }
+    if (isClassRow(k)) {
+      out.push({ card: true, cls: k, provisional: false });
+      placed.add(k);
+      continue;
+    }
+    const cls = memberOf.get(k);
+    if (!cls) { out.push({ name: k }); continue; }
+    if (names.includes(cls)) {
+      if (!isClassRow(cls)) out.push({ name: k });   // owner rebound to data
+    } else if (ownerCand.get(k) === cls || defining === cls) {
+      // No class row yet: its body is still running (Q7). A name match
+      // alone (no `Cls.` qualname, body not running) stays a plain row.
+      if (!placed.has(cls)) out.push({ card: true, cls, provisional: true });
+      placed.add(cls);
+    } else {
+      out.push({ name: k });
     }
   }
   return out;
+}
+
+function classCard(card, names, valueOf, valueCell, stats) {
+  const c = sourceClasses().get(card.cls);
+  const has = (k) => names.includes(k);
+  const insts = names.filter((k) => k !== 'self'
+    && typeof valueOf(k) === 'string' && valueOf(k).startsWith(`${card.cls} instance {`));
+  let head = `class <b>${escapeHtml(card.cls)}</b>`;
+  if (card.provisional) head += ' <span class="cc-note">(defining…)</span>';
+  if (insts.length) head += ` <span class="cc-note">· instances: ${escapeHtml(insts.join(', '))}</span>`;
+  const rows = [];
+  for (const a of c.attrs) {
+    if (has(a)) rows.push(`<tr><td class="k">${escapeHtml(a)}</td><td class="v">${valueCell(a)}</td></tr>`);
+  }
+  for (const m of c.methods) {
+    // A provisional card lists only the methods defined so far.
+    if (card.provisional && !has(m.name)) continue;
+    const meta = state.defs.fns[m.qn];
+    const live = stats.live.get(meta.line);
+    const tr = live ? `<tr class="fn-row-${live}">` : '<tr>';
+    rows.push(`${tr}<td class="k">${escapeHtml(m.name + (meta.sig ?? '(?)'))}</td><td class="v">${fnFacts(meta, stats)}</td></tr>`);
+  }
+  const body = rows.length ? `<table>${rows.join('')}</table>` : '';
+  const tip = typeof valueOf(card.cls) === 'string' ? ` title="${attrEsc(valueOf(card.cls))}"` : '';
+  return `<tr><td class="cc"><div class="ccard"${tip}><div class="cc-head">${head}</div>${body}</div></td></tr>`;
+}
+
+// defs entry for a function row's value ("Stack.push(self, item)" -> the
+// "Stack.push" entry), or null for data and functions outside the source.
+function fnMeta(v) {
+  if (typeof v !== 'string' || !looksLikeDefinition(v) || looksLikeClass(v)) return null;
+  const qn = (/^([A-Za-z_<>][\w.<>]*)\(/.exec(v) || [])[1];
+  const fns = (state.defs && state.defs.fns) || {};
+  return qn && hasOwnKey(fns, qn) ? fns[qn] : null;
+}
+
+// Call facts per def line, derived from steps 0..idx so rewinds are exact
+// (Q2, Q8–Q10). Frames match rows by `sig` (= co_firstlineno = defs line);
+// counts are class totals across instances (Q10).
+//   byLine: line -> { calls, out: {value} | {exc} | null }
+//   live:   line -> 'run' (innermost frame) | 'wait' (a caller below it)
+function callStats() {
+  const byLine = new Map();
+  const lineOf = new Map();   // frame id -> def line
+  const last = Math.min(state.idx, state.steps.length - 1);
+  for (let i = 0; i <= last; i++) {
+    const st = state.steps[i];
+    for (const e of st.stack || []) {
+      // The module frame (id 0, or numbered by its call event) has sig 1 —
+      // it would collide with a def on line 1.
+      if (!e.id || e.fn === '<module>' || lineOf.has(e.id)) continue;
+      lineOf.set(e.id, e.sig);
+      if (!byLine.has(e.sig)) byLine.set(e.sig, { calls: 0, out: null });
+      byLine.get(e.sig).calls++;
+    }
+    for (const r of st.ret || []) {
+      if (lineOf.has(r.id)) byLine.get(lineOf.get(r.id)).out = { value: r.value };
+    }
+    for (const x of st.exc || []) {
+      if (lineOf.has(x.id)) byLine.get(lineOf.get(x.id)).out = { exc: x.exc };
+    }
+  }
+  const live = new Map();
+  const cur = state.steps[last];
+  if (cur && !cur.finished) {
+    const frames = (cur.stack || []).filter((e) => e.id && e.fn !== '<module>');
+    for (const e of frames) live.set(e.sig, 'wait');
+    if (frames.length) live.set(frames[frames.length - 1].sig, 'run');
+  }
+  return { byLine, live };
+}
+
+function fnFacts(meta, stats) {
+  const s = stats.byLine.get(meta.line);
+  const mark = stats.live.get(meta.line);
+  let h = '';
+  if (mark === 'run') h += '<span class="fn-live fn-run">▶ running</span>';
+  if (mark === 'wait') h += '<span class="fn-live fn-wait">waiting</span>';
+  h += `<span class="fn-calls">×${s ? s.calls : 0}</span>`;
+  if (s && s.out && s.out.exc) {
+    h += `<span class="fn-exc">✗ ${escapeHtml(s.out.exc)}</span>`;
+  } else if (s && s.out && s.out.value !== null && s.out.value !== undefined) {
+    const full = fmtValue(s.out.value);
+    const short = full.length > MEM_TRUNC ? full.slice(0, MEM_TRUNC) + '…' : full;
+    h += `<span class="fn-ret" title="${attrEsc(full)}">→ ${escapeHtml(short)}</span>`;
+  }
+  return h;
 }
 
 // Shape checks on the runner's formatted values (runner.py
