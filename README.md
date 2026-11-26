@@ -53,6 +53,25 @@ To stop the server, close its minimized console window.
 - Works with `for` loops, `while` loops, `if/else`, `print`, nested functions, lists,
   dicts, and strings — i.e. anything the real Python interpreter can run
 
+### DSA visualisers (auto-detected from your code)
+
+- **Recursion tree** — animated call tree for recursive functions; grows with
+  depth, switches to text view beyond 250 nodes; click a node to jump to its step.
+- **Stack** — capacity-driven figure: the user's `max_capacity` (or `capacity`,
+  `limit`, etc.) decides whether **one** dashed "room left" box appears above
+  content; full stack draws none, unknown capacity draws one; strip shows
+  `size: N / C` or plain `size: N`; multiple `Stack` instances each get their
+  own figure with their own capacity.
+- **Queue** — linear array queue on the two-pointer kit: queued items solid,
+  freed slots at front hatched (served, never reused), room at rear dashed;
+  front/rear glide markers; strip shows `size: N / C` and `front`/`rear` values;
+  badges for `empty` / `full` / `full — N freed slots wasted`.
+- **Two Pointers** — generic two-pointer animation (e.g. two-sum, remove
+  duplicates); cell windowing keeps both pointers in view on narrow screens;
+  reverse array and palindrome sub-modes.
+- **Container With Most Water** — proportional bars with water level; three
+  bar-width presets per viewport class (phone/tablet/laptop/monitor).
+
 ## How it works
 
 - The page loads [Pyodide](https://pyodide.org) — the real CPython interpreter compiled
@@ -69,10 +88,15 @@ To stop the server, close its minimized console window.
 
 ## Project status / roadmap
 
-Implemented so far (v1):
+Implemented (v1 + DSA visualisers):
 - stepper UI, arrows, output and variables visualisation for single-file scripts
+- recursion tree, stack, queue, two pointers, container visualisers
+- responsive layouts: stacked (phone/tablet) with bottom dock + swipe step,
+  split (laptop/monitor) side-by-side; CSS device tokens
+- class cards in Variables panel with call facts (×N calls, last return, exceptions)
 
 Possible next steps:
 - function call stack visualization (nested frames)
 - memory diagram-style object visualisation (Python Tutor style)
-- `input()` support, sharing/loading code from URLs, dark mode
+- `input()` support, sharing/loading code from URLs
+- circular queue, linked list, hash table visualisers
