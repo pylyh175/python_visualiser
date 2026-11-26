@@ -77,3 +77,22 @@ same 8 rows. Expected: the figure grows with the content; nothing disappears;
   they carry ≤8 traces, proving the frozen-byte-exact guarantee.
 - `stack.js` byte-compiles (`node --check`); `runner.py` remains untouched
   (`ast.parse` guard); DSA audit extended (+4 growth checks).
+
+## Addendum — 2026-11-26: capacity-driven figure (grilled Q1–Q15)
+
+The fixed 8-slot floor is replaced by the user's declared capacity. The
+instance's `max_capacity` (or `capacity`, `max_size`, `limit`, etc. — see
+`STACK_CAPACITY_NAMES` in `config.js`) is read from the instance snapshot
+string (first) or the `__init__` frame's local while that frame is the
+recorded top (same `sig` match as `stackOpKey`). Only a genuine int > 0
+counts; strings, floats, booleans and ≤0 are treated as unknown.
+
+Figure rules:
+- At most **one** dashed empty box above content: `slotRows = content +
+  (hasRoom ? 1 : 0)`. A full stack draws none; unknown capacity always draws
+  one. The old 8-slot minimum and 40-slot cap are gone.
+- Strip shows `size: N / C` when capacity `C` is known, plain `size: N`
+  otherwise. Content exceeding capacity draws honestly (`size: 6 / 5`).
+- Multi-instance: each figure uses its own capacity from its own `selfStr`.
+- `STACK_VIS_CAP = 8` deleted; `STACK_CAPACITY_NAMES` added; comments
+  updated.
