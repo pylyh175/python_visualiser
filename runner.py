@@ -511,6 +511,11 @@ def __viz_run(code):
     # attribute names lead their slots; values follow.
     MEM_MAX_ITEMS = 100  # per container; the flat grid is fully scrollable
     MEM_MAX_DEPTH = 4    # box levels; the panel renders 3 and shows "…" beyond
+    # Links to an instance of the SAME class (Node.next -> Node) cost no
+    # depth, so a whole linked chain is recorded (2026-11-26 linked-list
+    # design, Q8); this caps the nodes a step may hold before such a link
+    # is cut to {"more": n}.
+    MEM_MAX_LINKED = 100
 
     def __viz_mem_classify(v):
         # Mirrors __viz_make_safe's branch order: containers and plain
@@ -544,6 +549,7 @@ def __viz_run(code):
         oid = __viz_obj_oid(value)
         if oid in mem["emitted"]:
             return {"ref": oid}
+        mem["emitted"].add(oid)   # before the children: a cycle meets {"ref"}
         if isinstance(value, dict):
             node = {"t": "dict", "items": []}
             n = len(value)
@@ -567,12 +573,27 @@ def __viz_run(code):
             attrs = [(k, v) for k, v in value.__dict__.items() if not k.startswith("__")]
             n = len(attrs)
             for k, v in attrs[:MEM_MAX_ITEMS]:
-                node["items"].append([k, __viz_mem_node(v, depth + 1, mem)])
+                if type(v) is type(value):
+                    # A link to its own class (Node.next): no depth cost.
+                    if len(mem["emitted"]) >= MEM_MAX_LINKED and __viz_obj_oid(v) not in mem["emitted"]:
+                        node["items"].append([k, {"more": __viz_chain_len(v, k)}])
+                    else:
+                        node["items"].append([k, __viz_mem_node(v, depth, mem)])
+                else:
+                    node["items"].append([k, __viz_mem_node(v, depth + 1, mem)])
         if n > MEM_MAX_ITEMS:
             node["items"].append({"more": n - MEM_MAX_ITEMS})
         mem["nodes"][str(oid)] = node
-        mem["emitted"].add(oid)
         return {"ref": oid}
+
+    def __viz_chain_len(v, attr):
+        # Nodes left in a chain cut by MEM_MAX_LINKED (cycle-safe, bounded).
+        n, seen, kind = 0, set(), type(v)
+        while type(v) is kind and id(v) not in seen and n < 100000:
+            seen.add(id(v))
+            n += 1
+            v = getattr(v, attr, None)
+        return n
 
     def __viz_mem_record(name, value, mem):
         # Root of the diagram for one variable slot; scalars and
@@ -796,7 +817,9 @@ def __viz_run(code):
     if code_obj is not None:
         try:
             for tk in tokenize.generate_tokens(io.StringIO(code).readline):
-                if tk.type == tokenize.COMMENT:
+                # Comment-ONLY lines: a trailing comment after code
+                # (`x = 1  # why`) must not hide that line's step.
+                if tk.type == tokenize.COMMENT and not tk.line[:tk.start[1]].strip():
                     skip_lines.add(tk.start[0])
         except (tokenize.TokenError, SyntaxError, IndentationError):
             pass
