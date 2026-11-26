@@ -14,12 +14,14 @@ export function hideOutTabsAll(mode) {
     els.treeBody.hidden = true;
     els.stackBody.hidden = true;
     els.queueBody.hidden = true;
+    els.cqueueBody.hidden = true;
     els.twoPtrsBody.hidden = true;
     els.reverseBody.hidden = true;
     els.palindromeBody.hidden = true;
     els.containerBody.hidden = true;
     state.outTab = 'out'; state.userTab = false;
     state.treeAnnounced = false; state.stackAnnounced = false; state.queueAnnounced = false;
+    state.cqueueAnnounced = false;
     state.twoPointersAnnounced = false;
     state.reverseAnnounced = false;
     state.palindromeAnnounced = false;

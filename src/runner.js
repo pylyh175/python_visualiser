@@ -25,6 +25,7 @@ export function resetRun() {
   state.programOutput = '';
   state.outTab = 'out'; state.userTab = false;
   state.treeAnnounced = false; state.stackAnnounced = false; state.queueAnnounced = false;
+  state.cqueueAnnounced = false;
   state.twoPointersAnnounced = false;
   state.reverseAnnounced = false;
   state.palindromeAnnounced = false;
