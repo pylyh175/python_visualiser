@@ -1034,7 +1034,8 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 #reverseBody,
 #palindromeBody,
 #containerBody,
-#queueBody {
+#queueBody,
+#cqueueBody {
   flex: 1 1 auto;       /* grow to fill available space */
   min-height: 0;        /* allow shrinking below min-height */
   overflow-x: auto;     /* horizontal scroll for many bars */
@@ -1800,3 +1801,48 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 .q-sw-live  { background: #1e3a5f; border-color: #60a5fa; }
 .q-sw-freed { background: repeating-linear-gradient(135deg, #1f2937 0 3px, #4b5563 3px 5px); border-style: dashed; border-color: #6b7280; }
 .q-sw-empty { background: transparent; border-style: dashed; border-color: #6b7280; }
+
+/* ── Circular Queue ring (2026-11-26 circular-queue design, grilled Q1–Q10) ──
+   SVG donut, one segment per slot (index 0 at 12 o'clock, clockwise).
+   Queued segments solid, empty ones a faint outline (every slot is
+   reusable — no hatched "freed" state). front/rear arrows rotate about the
+   ring centre with a CSS transition, their labels counter-rotate to stay
+   upright; the centre holds the length counter. */
+.cq-stage { flex: 0 1 auto; min-height: 0; display: flex; justify-content: center; align-items: center; }
+.cq-ring { width: min(100%, 380px); height: auto; max-height: 52vh; overflow: visible; }
+/* Stacked layouts share the screen with the editor: keep strip + legend in view. */
+:root[data-layout="stacked"] .cq-ring { max-height: 32vh; }
+.cq-seg path { stroke-width: 1.5; transition: fill var(--tp-anim, 320ms), stroke var(--tp-anim, 320ms); }
+.cq-seg.cq-live path  { fill: #1e3a5f; stroke: #60a5fa; }
+.cq-seg.cq-empty path { fill: rgba(31, 41, 55, 0.35); stroke: #4b5563; stroke-dasharray: 4 3; }
+.cq-val { fill: #f9fafb; font: 600 12px var(--mono); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.cq-idx { fill: #6b7280; font: 10px var(--mono); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.cq-enter path { animation: cqEnter var(--tp-anim, 320ms) ease-out; }
+.cq-leave path { animation: cqLeave calc(var(--tp-anim, 320ms) * 1.6) ease-out; }
+@keyframes cqEnter { from { fill: #3b82f6; } }
+@keyframes cqLeave { from { fill: #7f1d1d; stroke: #f87171; } }
+.cq-fly { fill: #fca5a5; }
+.cq-ptr {
+  transform-origin: 0 0;
+  transition: transform var(--tp-anim, 320ms) cubic-bezier(.3, .7, .4, 1);
+}
+.cq-ptr .cq-lab { transform-origin: 0 0; transition: transform var(--tp-anim, 320ms) cubic-bezier(.3, .7, .4, 1); }
+.cq-ptr text { font: 700 11px var(--mono); text-anchor: middle; dominant-baseline: central; }
+.cq-front polygon, .cq-front text { fill: #60a5fa; }
+.cq-rear polygon, .cq-rear text { fill: #f87171; }
+.cq-c-lab   { fill: #9ca3af; font: 10px var(--mono); text-anchor: middle; }
+.cq-c-num   { fill: #f9fafb; font: 700 18px var(--mono); text-anchor: middle; dominant-baseline: central; }
+.cq-c-state { fill: #9ca3af; font: 700 10px var(--mono); text-anchor: middle; letter-spacing: 1px; }
+.cq-c-state.cq-full { fill: #fbbf24; }
+.cq-strip { display: flex; gap: 2px; justify-content: center; margin: 6px 0 2px; flex-wrap: wrap; }
+.cq-cell {
+  min-width: 30px; height: 30px; padding: 0 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1.5px solid #4b5563; border-radius: 4px;
+  font: 11px var(--mono); color: #f9fafb;
+}
+.cq-cell small { font-size: 9px; color: #6b7280; line-height: 1; }
+.cq-cell.cq-live  { background: #1e3a5f; border-color: #60a5fa; }
+.cq-cell.cq-empty { border-style: dashed; }
+/* Ring + strip + legend can exceed a short pane (phones): scroll, don't clip. */
+#cqueueBody { overflow-y: auto; }
