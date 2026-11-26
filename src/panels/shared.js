@@ -15,6 +15,7 @@ export function hideOutTabsAll(mode) {
     els.stackBody.hidden = true;
     els.queueBody.hidden = true;
     els.cqueueBody.hidden = true;
+    els.llistBody.hidden = true;
     els.twoPtrsBody.hidden = true;
     els.reverseBody.hidden = true;
     els.palindromeBody.hidden = true;
@@ -22,6 +23,7 @@ export function hideOutTabsAll(mode) {
     state.outTab = 'out'; state.userTab = false;
     state.treeAnnounced = false; state.stackAnnounced = false; state.queueAnnounced = false;
     state.cqueueAnnounced = false;
+    state.llistAnnounced = false;
     state.twoPointersAnnounced = false;
     state.reverseAnnounced = false;
     state.palindromeAnnounced = false;

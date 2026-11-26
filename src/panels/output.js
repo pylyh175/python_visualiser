@@ -11,6 +11,7 @@ import { renderTree, recursionSeenUpTo } from './recursion.js';
 import { renderStack } from './stack.js';
 import { renderQueuePanel, queueFound } from './queue.js';
 import { renderCQueuePanel } from './cqueue.js';
+import { renderLListPanel, llistFound } from './linkedlist.js';
 import { renderTwoPointersPanel, engagePointerPane, detectTwoPointers, clearDetectCache } from './twoPointers.js';
 import { renderReversePanel } from './reverse.js';
 import { renderPalindromePanel, detectPalindrome } from './palindrome.js';
@@ -92,6 +93,9 @@ export function renderOutput() {
   if (dsaFamily(state.dsaMode) === 'queue' && !queueFound()) {
     text += '<span class="info">No Queue found — needs a class with an array plus front and rear indices.</span>';
   }
+  if (dsaFamily(state.dsaMode) === 'linked-list' && !llistFound()) {
+    text += '<span class="info">No Linked List found — needs a class whose head points at nodes with next and data.</span>';
+  }
   if (dsaFamily(state.dsaMode) === 'circular queue' && !queueFound()) {
     text += '<span class="info">No Circular Queue found — needs a class with an array plus front and rear indices.</span>';
   }
@@ -107,6 +111,7 @@ function syncOutFamily() {
   state.outTab = 'out'; state.userTab = false;
   state.treeAnnounced = false; state.stackAnnounced = false; state.queueAnnounced = false;
   state.cqueueAnnounced = false;
+  state.llistAnnounced = false;
   state.twoPointersAnnounced = false;
   state.reverseAnnounced = false;
   state.palindromeAnnounced = false;
@@ -141,7 +146,7 @@ function engageActivePane() {
 // The panel shows one tab FAMILY per DSA mode: recursion → Output|Recursion
 // (renderTree), stack → Output|Stack (renderStack), queue → Output|Queue
 // (renderQueuePanel), circular queue → Output|Circular Queue (renderCQueuePanel),
-// two-pointers →
+// linked-list → Output|Linked List (renderLListPanel), two-pointers →
 // Output|Two Pointers (renderTwoPointersPanel) or — when the reverse-array
 // sub-mode id is selected — Output|Reverse Array/String (renderReversePanel);
 // blank mode or no trace → plain output without a tab bar. Any DSA change
@@ -157,6 +162,7 @@ export function renderOutPanel() {
   els.tabStack.hidden = fam !== 'stack';
   els.tabQueue.hidden = fam !== 'queue';
   els.tabCQueue.hidden = fam !== 'circular queue';
+  els.tabLList.hidden = fam !== 'linked-list';
   els.tabTwoPtrs.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.tabReverse.hidden = fam !== 'two-pointers' || !isReverse;
   els.tabPalindrome.hidden = fam !== 'two-pointers' || !isPalindrome;
@@ -165,6 +171,7 @@ export function renderOutPanel() {
   els.stackBody.hidden = fam !== 'stack';
   els.queueBody.hidden = fam !== 'queue';
   els.cqueueBody.hidden = fam !== 'circular queue';
+  els.llistBody.hidden = fam !== 'linked-list';
   els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.reverseBody.hidden = fam !== 'two-pointers' || !isReverse;
   els.palindromeBody.hidden = fam !== 'two-pointers' || !isPalindrome;
@@ -177,17 +184,19 @@ export function renderOutPanel() {
   els.tabStack.classList.toggle('active', state.outTab === 'stack');
   els.tabQueue.classList.toggle('active', state.outTab === 'queue');
   els.tabCQueue.classList.toggle('active', state.outTab === 'cqueue');
+  els.tabLList.classList.toggle('active', state.outTab === 'llist');
   els.tabTwoPtrs.classList.toggle('active', state.outTab === 'two-pointers');
   els.tabReverse.classList.toggle('active', state.outTab === 'reverse');
   els.tabPalindrome.classList.toggle('active', state.outTab === 'palindrome');
   els.tabContainer.classList.toggle('active', state.outTab === 'container');
-  if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'queue' && fam !== 'circular queue' && fam !== 'two-pointers')) {
+  if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'queue' && fam !== 'circular queue' && fam !== 'linked-list' && fam !== 'two-pointers')) {
     hideOutTabsAll(state.dsaMode);
     return;
   }
   if (fam === 'stack') renderStack();
   else if (fam === 'queue') renderQueuePanel();
   else if (fam === 'circular queue') renderCQueuePanel();
+  else if (fam === 'linked-list') renderLListPanel();
   else if (isReverse) renderReversePanel();
   else if (isPalindrome) renderPalindromePanel();
   else if (isContainer) renderContainerPanel();
@@ -228,6 +237,11 @@ els.tabQueue.addEventListener('click', () => {
 });
 els.tabCQueue.addEventListener('click', () => {
   state.outTab = 'cqueue';
+  if (state.steps.length) state.userTab = true;
+  renderOutPanel();
+});
+els.tabLList.addEventListener('click', () => {
+  state.outTab = 'llist';
   if (state.steps.length) state.userTab = true;
   renderOutPanel();
 });
