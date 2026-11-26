@@ -158,14 +158,15 @@ function selectDsaOption(id) {
 
   // Per-mode default code (2026-11-07 design, grilled Q1–Q6): '(none)' and
   // implemented modes without a template fall back to DEFAULT_CODE; planned
-  // modes get a placeholder comment. The swap only happens when the editor
-  // still holds the previous template (stale default) — normalize is defined
+  // modes get their template if one exists, else a placeholder comment. The
+  // swap only happens when the editor still holds the previous template
+  // (stale default) — normalize is defined
   // BEFORE its first use (the previous session's bug: TDZ ReferenceError).
   const normalize = (s) => s.replace(/\r\n/g, '\n').trim();
   let newDefault = (entry.id === 'none' || !DSA_DEFAULT_CODE[entry.id])
     ? DEFAULT_CODE
     : DSA_DEFAULT_CODE[entry.id];
-  if (entry.status === 'planned') {
+  if (entry.status === 'planned' && !DSA_DEFAULT_CODE[entry.id]) {
     newDefault = `# ${entry.label} visualisation is planned — implement your code here`;
   }
   if (normalize(els.textarea.value) === normalize(lastLoadedDefault)) {
