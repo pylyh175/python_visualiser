@@ -131,6 +131,73 @@ def __viz_source_fn_map(source):
     return out
 
 
+def __viz_source_defs(source, fns):
+    """Run-level definition metadata for the variables panel's class cards
+    (2026-11-26 class-card design, grilled Q1–Q12):
+      fns:        qualname -> {"line": first line, "sig": params without a
+                  leading self/cls}. "line" equals the frame's
+                  co_firstlineno (the first decorator line when decorated),
+                  so the panel matches recorded frames (`sig`) to rows.
+      classAttrs: class qualname -> names assigned directly in its body
+                  (class attributes), in source order. Every class in the
+                  source has a key, even with no attributes."""
+    out_fns = {}
+    for qn, fdef in fns.items():
+        line = min([fdef.lineno] + [d.lineno for d in fdef.decorator_list])
+        try:
+            sig = __viz_sig_from_ast(fdef, drop_first=True)
+        except Exception:
+            sig = None
+        out_fns[qn] = {"line": line, "sig": sig}
+    attrs = {}
+    try:
+        tree = ast.parse(source, filename=VIZ_FILENAME)
+    except Exception:
+        return {"fns": out_fns, "classAttrs": attrs}
+
+    def walk(node, prefix):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                qn = prefix + child.name
+                names = []
+                for st in child.body:
+                    targets = st.targets if isinstance(st, ast.Assign) else (
+                        [st.target] if isinstance(st, (ast.AnnAssign, ast.AugAssign)) else [])
+                    for t in targets:
+                        if isinstance(t, ast.Name) and t.id not in names:
+                            names.append(t.id)
+                attrs[qn] = names
+                walk(child, qn + ".")
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                walk(child, prefix + child.name + ".<locals>.")
+            else:
+                walk(child, prefix)
+
+    walk(tree, "")
+    return {"fns": out_fns, "classAttrs": attrs}
+
+
+def __viz_sticky_items(sticky, g):
+    """(name, value) pairs for the remembered class-body names. sticky maps
+    name -> (owner class name, value captured from the body). Once the
+    class exists in the globals `g`, a plain class attribute is read LIVE
+    from it, so `Stack.count += 1` shows the current value (2026-11-26
+    class-card design, Q11). Functions and descriptors keep the captured
+    value — the class dict holds the same objects anyway."""
+    out = []
+    for name, (owner, value) in sticky.items():
+        cls = g.get(owner) if g is not None else None
+        if isinstance(cls, type):
+            try:
+                live = vars(cls)[name]
+                if not callable(live) and not isinstance(live, (staticmethod, classmethod, property)):
+                    value = live
+            except Exception:
+                pass
+        out.append((name, value))
+    return out
+
+
 def _viz_sig_drop_first(sig):
     """Drop a leading literal `self`/`cls` parameter from a rendered
     signature string — the class-blueprint variant of drop_first. Simple
@@ -336,25 +403,23 @@ def __viz_locals(frame, sticky, record=None):
     if f.f_code.co_name == "<module>":
         # Module level: retained class-body functions come first (so a class
         # entry sits below its methods), then globals in binding order.
-        if not add(list(sticky.items())):
+        if not add(__viz_sticky_items(sticky, f.f_globals)):
             return out
         if not add(items):
             return out
     else:
         if not add(items):
             return out
-        # A class body executing now: remember its names so their individual
-        # entries survive the frame (last-known value).
-        if any(k == "__qualname__" for k, _ in items):
+        # A class body executing now: remember its names (and their owner
+        # class) so their individual entries survive the frame.
+        owner = dict(items).get("__qualname__")
+        if owner is not None:
             for name, value in items:
                 if not name.startswith("__") and not isinstance(value, types.ModuleType):
-                    try:
-                        sticky[name] = __viz_make_safe(value)
-                    except Exception:
-                        sticky[name] = "<?>"
+                    sticky[name] = (owner, value)
         # Then the remembered class-body names, ahead of the outer scopes:
         # functions above their class, locals above globals.
-        if not add(list(sticky.items())):
+        if not add(__viz_sticky_items(sticky, f.f_globals)):
             return out
 
     # Remaining outer user frames (typically the module frame).
@@ -516,13 +581,14 @@ def __viz_run(code):
         if isinstance(root, dict) and "ref" in root:
             mem["roots"][name] = root
     pending_ret = []   # returns not yet resolved on a recorded step (normally ≤1: the next return step resolves them)
-    unwinding = False  # an exception is propagating; frame exits are not returns
+    pending_exc = []   # frames that exited by exception, attached to the next recorded step as `exc`
+    unwinding = False  # exception type name while one propagates; frame exits are not returns
 
     class VizStop(Exception):
         pass
 
     def tracer(frame, event, arg):
-        nonlocal call_count, pending_ret, unwinding
+        nonlocal call_count, pending_ret, pending_exc, unwinding
         if frame.f_code.co_filename != filename:
             return None
         if event == "call":
@@ -588,12 +654,16 @@ def __viz_run(code):
             if pending_ret:
                 step["ret"] = pending_ret
                 pending_ret = []
+            if pending_exc:
+                step["exc"] = pending_exc
+                pending_exc = []
             steps.append(step)
         elif event == "exception":
             # The propagating exception will unwind frames, each exiting with
             # a 'return' event and no value — those returns must not resolve
-            # tree nodes ("→ None" would lie) nor produce steps.
-            unwinding = True
+            # tree nodes ("→ None" would lie) nor produce steps. The type name
+            # is kept so the exit can be recorded as `exc` instead.
+            unwinding = getattr(arg[0], "__name__", None) or "Exception"
         elif event == "return":
             loc = frame.f_locals
             # A class body just finished: capture its complete namespace —
@@ -602,10 +672,7 @@ def __viz_run(code):
             if "__qualname__" in loc:
                 for name, value in loc.items():
                     if not name.startswith("__") and not isinstance(value, types.ModuleType):
-                        try:
-                            sticky[name] = __viz_make_safe(value)
-                        except Exception:
-                            sticky[name] = "<?>"
+                        sticky[name] = (loc["__qualname__"], value)
             # Record the call's return value, and make the return itself a
             # recorded step: after a nested call returns, the caller resumes
             # on the *same* line (no line event fires there), so single-chain
@@ -618,7 +685,9 @@ def __viz_run(code):
             fid = frames.pop(frame, None)
             # The module frame has rets recorded (its id ≠ 0 — the call event
             # numbered it) but the renderer ignores <module> nodes; unwound
-            # frames (exception exit) record nothing at all.
+            # frames (exception exit) record only their exception type.
+            if fid is not None and fid != 0 and unwinding and frame.f_code.co_name != "<module>":
+                pending_exc.append({"id": fid, "exc": unwinding})
             if fid is not None and fid != 0 and not unwinding:
                 try:
                     value = __viz_make_safe(arg)
@@ -667,6 +736,9 @@ def __viz_run(code):
                 if pending_ret:
                     step["ret"] = pending_ret
                     pending_ret = []
+                if pending_exc:
+                    step["exc"] = pending_exc
+                    pending_exc = []
                 steps.append(step)
         return tracer
 
@@ -801,7 +873,7 @@ def __viz_run(code):
         # __viz_locals does. Class names leave the module namespace when the
         # body ends and survive only via sticky — without this merge the
         # synthetic final step would make them vanish right at the last step.
-        add_final(list(sticky.items()))
+        add_final(__viz_sticky_items(sticky, glob))
         add_final(glob.items())
         steps.append({"line": final_line, "locals": final_locals,
                       "outLen": len(output), "finished": True,
@@ -814,6 +886,9 @@ def __viz_run(code):
         if pending_ret:
             steps[-1]["ret"] = pending_ret
             pending_ret = []
+        if pending_exc:
+            steps[-1]["exc"] = pending_exc
+            pending_exc = []
 
     result = {
         "steps": steps,
@@ -821,5 +896,6 @@ def __viz_run(code):
         "error": error_text,
         "errorLine": error_line,
         "stopped": stopped,
+        "defs": __viz_source_defs(code, _VIZ_SOURCE_FNS or {}),
     }
     return json.dumps(result)
