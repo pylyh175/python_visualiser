@@ -1039,7 +1039,8 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 #containerBody,
 #queueBody,
 #cqueueBody,
-#llistBody {
+#llistBody,
+#htableBody {
   flex: 1 1 auto;       /* grow to fill available space */
   min-height: 0;        /* allow shrinking below min-height */
   overflow-x: auto;     /* horizontal scroll for many bars */
@@ -1889,3 +1890,107 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 .ll-sw-new { background: rgba(52, 211, 153, 0.2); border-color: #34d399; }
 .ll-sw-removed { background: rgba(248, 113, 113, 0.2); border-color: #f87171; }
 .ll-sw-arrow { background: transparent; border: none; border-top: 2px solid #34d399; height: 0; }
+
+/* ── Hash Table (Linear Probing) pane (2026-11-27 hash-table design) ──
+   One figure per table: a wrapping row of slots (index above, key / value
+   inside, empty dashed), a load gauge with a ½ marker, and on the active
+   table the probe overlays — home (blue), probe cursor (amber ring), trail
+   (collision red · match green · empty-found amber), the cluster scan
+   (green), a lifted key (dashed amber) and the wrap arc. During a rehash
+   the old table sits dimmed above the new one. */
+#htableBody { overflow-y: auto; position: relative; }
+.ht-figs { display: flex; flex-direction: column; gap: 14px; padding-bottom: 6px; }
+.ht-fig { border: 1px solid #1f2937; border-radius: 8px; padding: 6px 8px 4px; opacity: 0.72; transition: opacity var(--tp-anim, 320ms); }
+.ht-fig.ht-active { opacity: 1; border-color: #374151; }
+.ht-fig-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 12px var(--mono); color: #9ca3af; margin-bottom: 4px; }
+.ht-name { color: #f9fafb; font-weight: 700; }
+.ht-load { display: inline-flex; align-items: center; gap: 6px; }
+.ht-load-bar { position: relative; width: 70px; height: 7px; border-radius: 4px; background: #1f2937; border: 1px solid #374151; overflow: hidden; }
+.ht-load-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: #34d399; transition: width var(--tp-anim, 320ms), background var(--tp-anim, 320ms); }
+.ht-load-bar b { position: absolute; left: 50%; top: -1px; bottom: -1px; width: 1px; background: #f9fafb; opacity: 0.7; }
+.ht-over { color: #f87171; font-weight: 700; }
+.ht-over .ht-load-bar i { background: #f87171; }
+.ht-pulse { animation: htPulse 0.7s ease; }
+@keyframes htPulse { 0% { color: #fde68a; text-shadow: 0 0 8px #fbbf24; } 100% { color: inherit; } }
+.ht-badge-err { color: #f87171; border-color: #f87171; background: rgba(248, 113, 113, 0.08); }
+.ht-row { flex-wrap: wrap; row-gap: 34px; padding: 18px 0 20px; }
+.ht-row .tp-cell.ht-slot { flex: 0 0 auto; min-width: 46px; max-width: 96px; padding: 0 5px; gap: 0; }
+.ht-row .tp-cell.ht-slot::before { bottom: auto; top: -16px; }
+.ht-k { font-weight: 700; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-v { font-size: 10px; color: #9ca3af; line-height: 1.1; }
+.ht-slot.ht-filled { background: #1e3a5f; border-color: #3b5b85; }
+.ht-slot.ht-empty { background: transparent; border-style: dashed; border-color: #4b5563; }
+.ht-more { flex: 0 0 auto; min-width: 70px; max-width: none; border-style: dotted; color: #9ca3af; font-size: 10px; }
+.ht-more::before { content: ''; }
+/* probe overlays */
+.ht-slot.ht-home { box-shadow: inset 0 -3px 0 #60a5fa; }
+.ht-slot.ht-col { border-color: #f87171; background: rgba(248, 113, 113, 0.18); }
+.ht-slot.ht-match { border-color: #4ade80; background: rgba(74, 222, 128, 0.2); }
+.ht-slot.ht-free { border-color: #fbbf24; border-style: solid; background: rgba(251, 191, 36, 0.14); }
+.ht-slot.ht-cursor { outline: 2px solid #fbbf24; outline-offset: 2px; z-index: 1; }
+.ht-slot.ht-scan { outline: 2px solid #34d399; outline-offset: 2px; }
+.ht-slot.ht-gap { border-color: #f87171; border-style: dashed; background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(248, 113, 113, 0.18) 5px 7px); }
+.ht-slot.ht-lifted { border: 2px dashed #fbbf24; background: transparent; opacity: 0.85; transform: translateY(-8px); }
+.ht-lifted .ht-k { color: #fde68a; }
+.ht-lifted .ht-v { color: #fbbf24; }
+.ht-crossed { opacity: 0.4; }
+.ht-crossed .ht-k, .ht-crossed .ht-v { text-decoration: line-through; }
+.ht-arrive { animation: htArrive 0.45s ease; }
+@keyframes htArrive { 0% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.ht-write { animation: tpWrite 0.6s ease; }
+.ht-update { animation: htUpdate 0.8s ease; }
+@keyframes htUpdate { 0% { background: #a855f7; color: #fff; } 100% { } }
+.ht-clear { animation: htClear 0.6s ease; }
+@keyframes htClear { 0% { background: #7f1d1d; border-color: #f87171; } 100% { } }
+.ht-tags { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; display: flex; flex-direction: column; align-items: center; gap: 1px; pointer-events: none; }
+.ht-tag { font: 700 9.5px var(--mono); line-height: 11px; white-space: nowrap; }
+.ht-tag-home { color: #60a5fa; }
+.ht-tag-probe { color: #fbbf24; }
+.ht-tag-scan { color: #34d399; }
+.ht-tag-gap { color: #f87171; }
+.ht-tag-wrap { color: #fbbf24; font-weight: 400; }
+/* wrap arc */
+.ht-track { position: relative; }
+.ht-wrap-svg { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.ht-wrap { fill: none; stroke: #fbbf24; stroke-width: 1.6; stroke-dasharray: 5 4; opacity: 0.75; }
+.ht-wrap.ht-wrap-now { stroke-width: 2.6; stroke-dasharray: none; opacity: 1; }
+.ht-wrap-head { fill: #fbbf24; }
+.ht-wrap-label { fill: #fbbf24; font: 10px var(--mono); text-anchor: middle; dominant-baseline: hanging; }
+/* rehash: old table above */
+.ht-old { border-bottom: 1px dashed #374151; margin-bottom: 4px; }
+.ht-old-label { font: italic 11px var(--mono); color: #9ca3af; }
+.ht-old-row { opacity: 0.6; padding-bottom: 10px; }
+/* delete: move chips */
+.ht-moves { display: flex; flex-wrap: wrap; gap: 6px; font: 11px var(--mono); min-height: 0; }
+.ht-moves:empty { display: none; }
+.ht-move { color: #34d399; border: 1px solid rgba(52, 211, 153, 0.5); border-radius: 4px; padding: 0 6px; }
+.ht-fly { font-size: 12px; }
+/* hash strip */
+.ht-hash { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font: 12px var(--mono); color: #e5e7eb; margin: 0 0 6px; padding: 4px 8px; border: 1px solid #374151; border-radius: 6px; background: #0b1220; }
+.ht-hash[hidden] { display: none; }
+.ht-hash-title { color: #93c5fd; font-weight: 700; }
+.ht-hash-res { color: #fde68a; }
+.ht-chars { display: inline-flex; gap: 3px; }
+.ht-ch { display: inline-flex; flex-direction: column; align-items: center; min-width: 22px; padding: 1px 3px; border: 1px solid #374151; border-radius: 4px; color: #9ca3af; transition: background var(--tp-anim, 320ms), border-color var(--tp-anim, 320ms); }
+.ht-ch small { font-size: 9px; color: #6b7280; line-height: 1; }
+.ht-ch-done { color: #e5e7eb; border-color: #4b5563; }
+.ht-ch-done small { color: #9ca3af; }
+.ht-ch-cur { color: #111827; background: #fbbf24; border-color: #fbbf24; font-weight: 700; }
+.ht-ch-cur small { color: #3a2c0b; }
+.ht-banner { margin: 0 0 6px; padding: 4px 8px; border: 1px solid #f87171; border-radius: 6px; background: rgba(248, 113, 113, 0.12); color: #fca5a5; font: 700 12px var(--mono); }
+.ht-banner[hidden] { display: none; }
+.ht-cap-col { color: #f87171; font-weight: 600; }
+/* legend swatches */
+.ht-sw-home { background: transparent; border: none; border-bottom: 3px solid #60a5fa; }
+.ht-sw-probe { background: transparent; outline: 2px solid #fbbf24; }
+.ht-sw-col { background: rgba(248, 113, 113, 0.3); border-color: #f87171; }
+.ht-sw-match { background: rgba(74, 222, 128, 0.3); border-color: #4ade80; }
+.ht-sw-free { background: rgba(251, 191, 36, 0.25); border-color: #fbbf24; }
+.ht-sw-scan { background: transparent; outline: 2px solid #34d399; }
+.ht-sw-lifted { background: transparent; border: 1px dashed #fbbf24; }
+@media (prefers-reduced-motion: reduce) {
+  .ht-fig, .ht-load-bar i, .ht-ch { transition: none !important; }
+  .ht-arrive, .ht-write, .ht-update, .ht-clear, .ht-pulse { animation: none !important; }
+}
+.ht-wrapping .ht-new-row { padding-bottom: 58px; row-gap: 46px; }
+.ht-slot[data-wrap-from]::after { content: '↪ from ' attr(data-wrap-from); position: absolute; left: 50%; top: calc(100% + 16px); transform: translateX(-50%); font: 9.5px var(--mono); color: #fbbf24; white-space: nowrap; }
