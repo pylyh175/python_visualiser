@@ -72,6 +72,11 @@ To stop the server, close its minimized console window.
   a wrap arrow past the last slot; delete shows the gap, the cluster scan and
   each re-placed key; rehash keeps the old table dimmed above the new one;
   a full table gets a "Table is full!" banner.
+- **Hash Table (Separate Chaining)** — a column of buckets, each with its chain
+  of Linked List boxes and "len n"; the hash strip picks the home bucket, then
+  `current` / `previous` tags walk the chain (passed nodes grey, match green,
+  `None` amber at the end); a new node floats above and links in at the front;
+  delete drops the node below with a bypass arc; load factor can pass 1.
 - **Two Pointers** — generic two-pointer animation (e.g. two-sum, remove
   duplicates); cell windowing keeps both pointers in view on narrow screens;
   reverse array and palindrome sub-modes.
@@ -97,7 +102,7 @@ To stop the server, close its minimized console window.
 Implemented (v1 + DSA visualisers):
 - stepper UI, arrows, output and variables visualisation for single-file scripts
 - recursion tree, stack, queue, two pointers, container visualisers
-- hash table (linear probing) visualiser
+- hash table (linear probing, separate chaining) visualisers
 - responsive layouts: stacked (phone/tablet) with bottom dock + swipe step,
   split (laptop/monitor) side-by-side; CSS device tokens
 - class cards in Variables panel with call facts (×N calls, last return, exceptions)
@@ -106,4 +111,4 @@ Possible next steps:
 - function call stack visualization (nested frames)
 - memory diagram-style object visualisation (Python Tutor style)
 - `input()` support, sharing/loading code from URLs
-- circular queue, linked list visualisers, hash table (separate chaining)
+- circular queue, linked list visualisers
