@@ -20,7 +20,9 @@ try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.addInitScript(() => localStorage.setItem('vizDsaMode', 'none'));
+  // Guarded: before the server binds, goto lands on Chrome's error page,
+  // where localStorage access throws.
+  await page.addInitScript(() => { try { localStorage.setItem('vizDsaMode', 'none'); } catch (e) { /* error page */ } });
   for (let i = 0; ; i++) {   // the server needs a moment to bind
     try { await page.goto(`http://127.0.0.1:${PORT}/index.html`); break; } catch (e) { if (i > 40) throw e; await page.waitForTimeout(250); }
   }
