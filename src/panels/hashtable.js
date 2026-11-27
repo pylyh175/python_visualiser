@@ -20,6 +20,7 @@ import { escapeHtml } from '../utils.js';
 import { syncCells, setCaption, setLegend, showMessage, flash, animMs } from './pointerKit.js';
 import { hideOutTabsAll } from './shared.js';
 import { analyse, frameAt, tableFound, py, bare } from './hashtableFacts.js';
+import { fly, hashHtml } from './hashShared.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const MARK_CLS = { collision: 'ht-col', match: 'ht-match', empty: 'ht-free', hidden: '' };
@@ -148,54 +149,6 @@ function drawWrap(f, fig, t) {
     <path d="${d}" class="ht-wrap${fig.wrapNow ? ' ht-wrap-now' : ''}" marker-end="url(#htWrapHead)"/>
     <text x="${(x1 + x2) / 2}" y="${low + 2}" class="ht-wrap-label">wrap ↩ ${t.slots.length - 1} → 0</text>`;
   if (svg._d !== html) { svg.innerHTML = html; svg._d = html; }
-}
-
-// A copy of `text` flies from one cell to another (lifted key → new slot,
-// old table → new table).
-function fly(v, fromEl, toEl, text, ms) {
-  if (!ms || !fromEl || !toEl || typeof Element.prototype.animate !== 'function') return;
-  const base = v.body.getBoundingClientRect();
-  const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
-  if (!a.width || !b.width) return;
-  const ghost = document.createElement('div');
-  ghost.className = 'tp-fly ht-fly';
-  ghost.textContent = text;
-  ghost.style.left = `${a.left - base.left + v.body.scrollLeft}px`;
-  ghost.style.top = `${a.top - base.top + v.body.scrollTop}px`;
-  ghost.style.width = `${a.width}px`;
-  ghost.style.height = `${a.height}px`;
-  v.body.appendChild(ghost);
-  toEl.classList.add('tp-landing');
-  const dx = b.left - a.left, dy = b.top - a.top;
-  const anim = ghost.animate([
-    { transform: 'translate(0, 0)' },
-    { transform: `translate(${dx / 2}px, ${dy / 2 - 26}px)`, offset: 0.5 },
-    { transform: `translate(${dx}px, ${dy}px)` },
-  ], { duration: Math.round(ms * 1.6), easing: 'ease-in-out' });
-  const done = () => { ghost.remove(); toEl.classList.remove('tp-landing'); };
-  anim.onfinish = done;
-  anim.oncancel = done;
-  v.flights.push(anim);
-}
-
-function hashHtml(hs, size) {
-  if (!hs) return '';
-  const title = `hash(${escapeHtml(py(hs.key, 24))})`;
-  if (hs.done || !hs.live || !hs.chars) {
-    const res = hs.result !== undefined ? hs.result : hs.lastValue;
-    return `<span class="ht-hash-title">${title}</span> = <b class="ht-hash-res">${escapeHtml(py(res))}</b> <span class="tp-cap-muted">→ home slot</span>`;
-  }
-  const chars = hs.chars.slice(0, 24).map((c, k) => {
-    const doneRow = k < hs.current ? hs.rows[k] : null;
-    const cls = k === hs.current ? 'ht-ch ht-ch-cur' : k < hs.current ? 'ht-ch ht-ch-done' : 'ht-ch';
-    const sub = doneRow && doneRow.value !== null ? escapeHtml(py(doneRow.value)) : '&nbsp;';
-    return `<span class="${cls}"><span>${escapeHtml(c)}</span><small>${k === hs.current ? 'ord ' + c.charCodeAt(0) : sub}</small></span>`;
-  }).join('');
-  const vals = [];
-  if (hs.value !== null && hs.value !== undefined) vals.push(`value = <b>${escapeHtml(py(hs.value))}</b>`);
-  if (hs.a !== null && hs.a !== undefined) vals.push(`a = ${escapeHtml(py(hs.a))}`);
-  return `<span class="ht-hash-title">${title}</span><span class="ht-chars">${chars}${hs.chars.length > 24 ? '<span class="ht-ch">…</span>' : ''}</span>
-    <span class="ht-hash-vals">${vals.join(' · ')} <span class="tp-cap-muted">(mod ${size})</span></span>`;
 }
 
 export function renderHTablePanel() {
