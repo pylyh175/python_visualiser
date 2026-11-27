@@ -77,6 +77,13 @@ To stop the server, close its minimized console window.
   `current` / `previous` tags walk the chain (passed nodes grey, match green,
   `None` amber at the end); a new node floats above and links in at the front;
   delete drops the node below with a bypass arc; load factor can pass 1.
+- **Binary Search Tree** — the data tree in in-order layout (left to right =
+  sorted); a `current` tag walks the path of recursive frames with the
+  comparison in the caption, a dashed ghost slot marks the `None` child reached
+  (the new node grows there, red on a miss); returns travel up each edge and
+  name the relink; delete shows case 1 / 2 / 3 with the successor key flying
+  into place; `height` and `in_order` fill in badges and a result strip; a
+  call-stack column and size / height / visited counters sit alongside.
 - **Two Pointers** — generic two-pointer animation (e.g. two-sum, remove
   duplicates); cell windowing keeps both pointers in view on narrow screens;
   reverse array and palindrome sub-modes.
@@ -103,6 +110,7 @@ Implemented (v1 + DSA visualisers):
 - stepper UI, arrows, output and variables visualisation for single-file scripts
 - recursion tree, stack, queue, two pointers, container visualisers
 - hash table (linear probing, separate chaining) visualisers
+- binary search tree visualiser
 - responsive layouts: stacked (phone/tablet) with bottom dock + swipe step,
   split (laptop/monitor) side-by-side; CSS device tokens
 - class cards in Variables panel with call facts (×N calls, last return, exceptions)
