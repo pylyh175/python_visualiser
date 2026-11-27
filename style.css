@@ -1041,7 +1041,8 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 #cqueueBody,
 #llistBody,
 #htableBody,
-#hchainBody {
+#hchainBody,
+#bstBody {
   flex: 1 1 auto;       /* grow to fill available space */
   min-height: 0;        /* allow shrinking below min-height */
   overflow-x: auto;     /* horizontal scroll for many bars */
@@ -2062,3 +2063,73 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
   .hc-row, .hc-tag, .hc-chain .tp-cell.hc-node, .hc-nil { transition: none !important; }
   .hc-miss, .hc-cleared, .hc-update { animation: none !important; }
 }
+
+/* ── Binary Search Tree pane (2026-11-29 BST design) ──
+   SVG data tree in in-order layout (panels/bst.js): pills [key / item],
+   edges parent → child, gliding tags, a ghost slot for a reached None
+   child, return / copy chips, and the call-stack column (rt-stack) that
+   drops below the tree on a narrow pane (.bst-narrow). */
+#bstBody { overflow: hidden; position: relative; }
+.bst-main { flex: 1; min-height: 0; display: flex; gap: 8px; }
+.bst-main.bst-narrow { flex-direction: column; }
+.bst-main.bst-narrow .bst-stack { width: auto; max-height: 30%; border-left: none; border-top: 1px solid #1f2937; padding: 6px 0 0; display: block; }
+.bst-scroll { flex: 1; min-width: 0; min-height: 0; overflow: auto; position: relative; }
+.bst-svg { display: block; margin: 0 auto; overflow: visible; }
+.bst-stack-empty { color: #6b7280; font-style: italic; }
+.bst-counters { color: #9ca3af; font-family: var(--mono); font-size: 12px; }
+.bst-counters b { color: #e5e7eb; }
+.bst-op-last { opacity: 0.6; }
+.bst-cap-change { color: #4ade80; }
+.bst-cap-err { color: #f87171; }
+.bst-node { transition: transform var(--tp-anim, 320ms) cubic-bezier(.3, .7, .4, 1), opacity var(--tp-anim, 320ms); }
+.bst-box { fill: #1f2937; stroke: #4b5563; stroke-width: 1.5; transition: fill 0.2s, stroke 0.2s; }
+.bst-key { fill: #e5e7eb; font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.bst-item { fill: #9ca3af; font-family: var(--mono); font-size: 10px; }
+.bst-path .bst-box { stroke: #fbbf24; stroke-dasharray: 4 3; }
+.bst-path .bst-key { fill: #fde68a; }
+.bst-active .bst-box { fill: rgba(251, 191, 36, 0.2); stroke: #fbbf24; stroke-width: 2.5; filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.55)); }
+.bst-active .bst-key { fill: #fde68a; }
+.bst-found .bst-box { fill: rgba(74, 222, 128, 0.2); stroke: #4ade80; stroke-width: 2.5; filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.5)); }
+.bst-found .bst-key { fill: #bbf7d0; }
+.bst-dup .bst-box { fill: rgba(248, 113, 113, 0.2); stroke: #f87171; stroke-width: 2.5; }
+.bst-dup .bst-key { fill: #fca5a5; }
+.bst-done .bst-box { fill: rgba(52, 211, 153, 0.1); stroke: rgba(52, 211, 153, 0.6); }
+.bst-new .bst-box { fill: rgba(52, 211, 153, 0.18); stroke: #34d399; stroke-width: 2; stroke-dasharray: 5 3; }
+.bst-ghost .bst-box { fill: transparent; stroke: #6b7280; stroke-dasharray: 4 3; }
+.bst-ghost .bst-key { fill: #9ca3af; font-size: 11px; font-weight: 400; }
+.bst-ghost-miss .bst-box { stroke: #f87171; fill: rgba(248, 113, 113, 0.12); }
+.bst-ghost-miss .bst-key { fill: #fca5a5; }
+.bst-gone .bst-box { stroke: #f87171; }
+.bst-copied .bst-box { animation: bstCopied 0.9s ease; }
+@keyframes bstCopied { 0% { fill: rgba(167, 139, 250, 0.55); stroke: #a78bfa; } 100% { } }
+.bst-newroot .bst-box { animation: bstCopied 0.9s ease; }
+.bst-hbadge rect { fill: #60a5fa; }
+.bst-hbadge text { fill: #0b1220; font-family: var(--mono); font-size: 9.5px; font-weight: 700; }
+.bst-vbadge circle { fill: #a78bfa; }
+.bst-vbadge text { fill: #0b1220; font-family: var(--mono); font-size: 9.5px; font-weight: 700; }
+.bst-edge { fill: none; stroke: #4b5563; stroke-width: 1.6; transition: d var(--tp-anim, 320ms) cubic-bezier(.3, .7, .4, 1), stroke 0.2s; }
+.bst-edge-path { stroke: #fbbf24; stroke-width: 2.5; }
+.bst-edge-new { stroke: #34d399; stroke-width: 2.8; filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.7)); }
+.bst-edge-slot { stroke-dasharray: 4 3; }
+.bst-edge-miss { stroke: #f87171; }
+.bst-tag { font-family: var(--mono); font-size: 10px; font-weight: 700; fill: #60a5fa; transition: transform var(--tp-anim, 320ms) cubic-bezier(.3, .7, .4, 1); }
+.bst-tag-cur { fill: #fbbf24; }
+.bst-tag-root { fill: #9ca3af; }
+.bst-flyval rect { fill: #14532d; stroke: #4ade80; stroke-width: 1.5; }
+.bst-flyval text { fill: #bbf7d0; font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.bst-fly-copy rect { fill: #3b0764; stroke: #a78bfa; }
+.bst-fly-copy text { fill: #ddd6fe; }
+.bst-result { margin-top: 6px; font-family: var(--mono); font-size: 12px; color: #d1d5db; }
+.bst-result-name { color: #a78bfa; font-weight: 700; }
+.bst-chip { color: #e5e7eb; }
+.bst-chip-new { color: #4ade80; font-weight: 700; }
+.bst-sw-path { border: 1.5px dashed #fbbf24; background: transparent; }
+.bst-sw-active { border: 1.5px solid #fbbf24; background: rgba(251, 191, 36, 0.3); }
+.bst-sw-found { border: 1.5px solid #4ade80; background: rgba(74, 222, 128, 0.3); }
+.bst-sw-ghost { border: 1.5px dashed #6b7280; background: transparent; }
+.bst-sw-err { border: 1.5px solid #f87171; background: rgba(248, 113, 113, 0.25); }
+@media (prefers-reduced-motion: reduce) {
+  .bst-node, .bst-edge, .bst-tag { transition: none !important; }
+  .bst-copied .bst-box, .bst-newroot .bst-box { animation: none !important; }
+}
+.bst-main:not(.bst-narrow) .bst-stack { width: 230px; }
