@@ -13,6 +13,7 @@ import { renderQueuePanel, queueFound } from './queue.js';
 import { renderCQueuePanel } from './cqueue.js';
 import { renderLListPanel, llistFound } from './linkedlist.js';
 import { renderHTablePanel, htableFound } from './hashtable.js';
+import { renderHChainPanel, hchainFound } from './chaining.js';
 import { renderTwoPointersPanel, engagePointerPane, detectTwoPointers, clearDetectCache } from './twoPointers.js';
 import { renderReversePanel } from './reverse.js';
 import { renderPalindromePanel, detectPalindrome } from './palindrome.js';
@@ -100,6 +101,9 @@ export function renderOutput() {
   if (dsaFamily(state.dsaMode) === 'hash-table-linear-probe' && !htableFound()) {
     text += '<span class="info">No Hash Table found — needs a class whose array holds None or (key, value) pairs.</span>';
   }
+  if (dsaFamily(state.dsaMode) === 'hash-table-separate-chaining' && !hchainFound()) {
+    text += '<span class="info">No chained Hash Table found — needs a class whose array holds None or the first Node (key, value, next) of a chain.</span>';
+  }
   if (dsaFamily(state.dsaMode) === 'circular queue' && !queueFound()) {
     text += '<span class="info">No Circular Queue found — needs a class with an array plus front and rear indices.</span>';
   }
@@ -117,6 +121,7 @@ function syncOutFamily() {
   state.cqueueAnnounced = false;
   state.llistAnnounced = false;
   state.htableAnnounced = false;
+  state.hchainAnnounced = false;
   state.twoPointersAnnounced = false;
   state.reverseAnnounced = false;
   state.palindromeAnnounced = false;
@@ -152,7 +157,8 @@ function engageActivePane() {
 // (renderTree), stack → Output|Stack (renderStack), queue → Output|Queue
 // (renderQueuePanel), circular queue → Output|Circular Queue (renderCQueuePanel),
 // linked-list → Output|Linked List (renderLListPanel), hash-table-linear-probe →
-// Output|Hash Table (renderHTablePanel), two-pointers →
+// Output|Hash Table (renderHTablePanel), hash-table-separate-chaining →
+// Output|Hash Table (Chaining) (renderHChainPanel), two-pointers →
 // Output|Two Pointers (renderTwoPointersPanel) or — when the reverse-array
 // sub-mode id is selected — Output|Reverse Array/String (renderReversePanel);
 // blank mode or no trace → plain output without a tab bar. Any DSA change
@@ -170,6 +176,7 @@ export function renderOutPanel() {
   els.tabCQueue.hidden = fam !== 'circular queue';
   els.tabLList.hidden = fam !== 'linked-list';
   els.tabHTable.hidden = fam !== 'hash-table-linear-probe';
+  els.tabHChain.hidden = fam !== 'hash-table-separate-chaining';
   els.tabTwoPtrs.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.tabReverse.hidden = fam !== 'two-pointers' || !isReverse;
   els.tabPalindrome.hidden = fam !== 'two-pointers' || !isPalindrome;
@@ -180,6 +187,7 @@ export function renderOutPanel() {
   els.cqueueBody.hidden = fam !== 'circular queue';
   els.llistBody.hidden = fam !== 'linked-list';
   els.htableBody.hidden = fam !== 'hash-table-linear-probe';
+  els.hchainBody.hidden = fam !== 'hash-table-separate-chaining';
   els.twoPtrsBody.hidden = fam !== 'two-pointers' || isReverse || isPalindrome || isContainer;
   els.reverseBody.hidden = fam !== 'two-pointers' || !isReverse;
   els.palindromeBody.hidden = fam !== 'two-pointers' || !isPalindrome;
@@ -194,11 +202,12 @@ export function renderOutPanel() {
   els.tabCQueue.classList.toggle('active', state.outTab === 'cqueue');
   els.tabLList.classList.toggle('active', state.outTab === 'llist');
   els.tabHTable.classList.toggle('active', state.outTab === 'htable');
+  els.tabHChain.classList.toggle('active', state.outTab === 'hchain');
   els.tabTwoPtrs.classList.toggle('active', state.outTab === 'two-pointers');
   els.tabReverse.classList.toggle('active', state.outTab === 'reverse');
   els.tabPalindrome.classList.toggle('active', state.outTab === 'palindrome');
   els.tabContainer.classList.toggle('active', state.outTab === 'container');
-  if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'queue' && fam !== 'circular queue' && fam !== 'linked-list' && fam !== 'hash-table-linear-probe' && fam !== 'two-pointers')) {
+  if (!state.steps.length || (fam !== 'recursion' && fam !== 'stack' && fam !== 'queue' && fam !== 'circular queue' && fam !== 'linked-list' && fam !== 'hash-table-linear-probe' && fam !== 'hash-table-separate-chaining' && fam !== 'two-pointers')) {
     hideOutTabsAll(state.dsaMode);
     return;
   }
@@ -207,6 +216,7 @@ export function renderOutPanel() {
   else if (fam === 'circular queue') renderCQueuePanel();
   else if (fam === 'linked-list') renderLListPanel();
   else if (fam === 'hash-table-linear-probe') renderHTablePanel();
+  else if (fam === 'hash-table-separate-chaining') renderHChainPanel();
   else if (isReverse) renderReversePanel();
   else if (isPalindrome) renderPalindromePanel();
   else if (isContainer) renderContainerPanel();
@@ -252,6 +262,11 @@ els.tabCQueue.addEventListener('click', () => {
 });
 els.tabLList.addEventListener('click', () => {
   state.outTab = 'llist';
+  if (state.steps.length) state.userTab = true;
+  renderOutPanel();
+});
+els.tabHChain.addEventListener('click', () => {
+  state.outTab = 'hchain';
   if (state.steps.length) state.userTab = true;
   renderOutPanel();
 });

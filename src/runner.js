@@ -28,6 +28,7 @@ export function resetRun() {
   state.cqueueAnnounced = false;
   state.llistAnnounced = false;
   state.htableAnnounced = false;
+  state.hchainAnnounced = false;
   state.twoPointersAnnounced = false;
   state.reverseAnnounced = false;
   state.palindromeAnnounced = false;

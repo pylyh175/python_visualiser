@@ -1040,7 +1040,8 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 #queueBody,
 #cqueueBody,
 #llistBody,
-#htableBody {
+#htableBody,
+#hchainBody {
   flex: 1 1 auto;       /* grow to fill available space */
   min-height: 0;        /* allow shrinking below min-height */
   overflow-x: auto;     /* horizontal scroll for many bars */
@@ -1994,3 +1995,70 @@ boxes; the formatted string stays the hover tooltip (.mem-wrap). */
 }
 .ht-wrapping .ht-new-row { padding-bottom: 58px; row-gap: 46px; }
 .ht-slot[data-wrap-from]::after { content: '↪ from ' attr(data-wrap-from); position: absolute; left: 50%; top: calc(100% + 16px); transform: translateX(-50%); font: 9.5px var(--mono); color: #fbbf24; white-space: nowrap; }
+
+/* ── Hash Table (Separate Chaining) pane (2026-11-28 chaining design) ──
+   A vertical column of buckets: index · slot box (● / None) · chain of
+   Linked List boxes (ll-node) · "len n". SVG arrows (panels/chaining.js
+   drawArrows) run slot → first node → …; gliding tags name the locals.
+   The new node floats above its row (ll-new), an unlinked node drops
+   below (ll-removed); rows open up room for them (hc-lift / hc-drop). */
+#hchainBody { overflow: auto; position: relative; }
+.hc-stage { position: relative; width: max-content; min-width: 100%; }
+.hc-arrows { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 1; }
+.hc-grid { display: flex; flex-direction: column; gap: 2px; padding: 4px 30px 4px 0; }
+.hc-row { display: flex; align-items: center; gap: 12px; padding: 4px 6px 8px; border-left: 3px solid transparent; border-radius: 4px;
+  transition: padding var(--tp-anim, 320ms), background var(--tp-anim, 320ms), border-color var(--tp-anim, 320ms); }
+.hc-grid .hc-row.hc-lift { padding-top: 50px; }
+.hc-grid .hc-row.hc-drop { padding-bottom: 58px; }
+.hc-row.hc-home, .hc-row.hc-scan { padding-bottom: 26px; }
+.hc-row.hc-home { border-left-color: #60a5fa; background: rgba(96, 165, 250, 0.07); }
+.hc-row.hc-scan { border-left-color: #34d399; background: rgba(52, 211, 153, 0.07); }
+.hc-idx { width: 18px; text-align: right; font: 11px var(--mono); color: #6b7280; }
+.hc-home .hc-idx { color: #60a5fa; font-weight: 700; }
+.hc-slot { flex: 0 0 auto; width: 34px; height: var(--tp-cell-h, 44px); display: flex; align-items: center; justify-content: center;
+  border: 2px solid #3b5b85; border-radius: 6px; background: #1e3a5f; color: #93c5fd; font: 12px var(--mono); }
+.hc-slot.hc-slot-empty { background: transparent; border-style: dashed; border-color: #4b5563; color: #6b7280; font-size: 10px; }
+.hc-miss { animation: hcMiss 0.8s ease; }
+@keyframes hcMiss { 0% { background: rgba(251, 191, 36, 0.4); border-color: #fbbf24; } 100% { } }
+.hc-cleared { animation: htClear 0.7s ease; }
+.hc-chain { display: flex; align-items: center; gap: 30px; min-height: var(--tp-cell-h, 44px); padding-left: 22px; }
+.hc-chain .tp-cell.hc-node { flex: 0 0 auto; min-width: 0; max-width: none; padding: 0; flex-direction: row; align-items: stretch; overflow: visible;
+  transition: transform var(--tp-anim, 320ms) ease, background var(--tp-anim, 320ms), border-color var(--tp-anim, 320ms), opacity var(--tp-anim, 320ms); }
+.hc-chain .tp-cell.hc-node::before { content: ''; }
+.hc-node .ll-data { flex-direction: column; gap: 0; min-width: 44px; padding: 0 7px; }
+.hc-k { font-weight: 700; line-height: 1.15; }
+.hc-v { font-size: 10px; color: #9ca3af; line-height: 1.1; }
+.hc-node.hc-passed { border-color: #6b7280; background: rgba(107, 114, 128, 0.25); }
+.hc-node.hc-passed .hc-k { color: #9ca3af; }
+.hc-node.hc-match { border-color: #4ade80; background: rgba(74, 222, 128, 0.2); }
+.hc-node.ll-new { transform: translateY(-46px); }
+.hc-node.ll-removed { transform: translateY(42px); }
+.hc-update { animation: htUpdate 0.8s ease; }
+.hc-nil { flex: 0 0 auto; margin-left: -22px; font: 10px var(--mono); color: transparent; padding: 2px 4px; border-radius: 4px; border: 1px dashed transparent;
+  transition: color var(--tp-anim, 320ms), background var(--tp-anim, 320ms), border-color var(--tp-anim, 320ms); }
+.hc-nil.hc-nil-on { color: #fbbf24; background: rgba(251, 191, 36, 0.14); border-color: #fbbf24; }
+.hc-more { flex: 0 0 auto; font: 10px var(--mono); color: #9ca3af; }
+.hc-len { margin-left: auto; padding-left: 14px; font: 10px var(--mono); color: #6b7280; white-space: nowrap; }
+.hc-len.hc-longest { color: #fbbf24; font-weight: 700; }
+.ll-arrow.hc-arrow-gone { stroke: #f87171; stroke-dasharray: 4 3; opacity: 0.7; }
+.ll-head.hc-arrow-gone { fill: #f87171; }
+.hc-over-one { color: #fbbf24; }
+.hc-over-one .ht-load-bar i { background: #fbbf24; }
+.hc-tags { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 2; }
+.hc-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; font: 700 10px var(--mono); line-height: 11px;
+  white-space: nowrap; pointer-events: none; transition: transform var(--tp-anim, 320ms) cubic-bezier(.3, .7, .4, 1); }
+.hc-tag-arrow { font-size: 8px; height: 9px; }
+.hc-tag-stacked .hc-tag-arrow { display: none; }
+.hc-tag[data-role="current"] { color: #fbbf24; }
+.hc-tag[data-role="previous"] { color: #a78bfa; }
+.hc-tag[data-role="new"] { color: #34d399; }
+.hc-tag[data-role="other"] { color: #60a5fa; }
+.hc-cap-pass { color: #9ca3af; font-weight: 600; }
+.hc-sw-home { background: rgba(96, 165, 250, 0.2); border-left: 3px solid #60a5fa; }
+.hc-sw-passed { background: rgba(107, 114, 128, 0.35); border-color: #6b7280; }
+.hc-sw-match { background: rgba(74, 222, 128, 0.3); border-color: #4ade80; }
+.hc-sw-scan { background: rgba(52, 211, 153, 0.2); border-left: 3px solid #34d399; }
+@media (prefers-reduced-motion: reduce) {
+  .hc-row, .hc-tag, .hc-chain .tp-cell.hc-node, .hc-nil { transition: none !important; }
+  .hc-miss, .hc-cleared, .hc-update { animation: none !important; }
+}
