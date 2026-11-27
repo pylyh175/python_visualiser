@@ -54,6 +54,10 @@ els.visualize.addEventListener('click', async () => {
     return;
   }
   resetRun();
+  // A DSA mode change while this run is in flight bumps the epoch; the late
+  // result belongs to the abandoned mode and must never repopulate the boxes
+  //.
+  const epoch = state.runEpoch;
   // Stack detection pinned to the exact code being executed (see
   // 2026-11-03-stack-visualiser-design.md).
   state.stackScan = scanStackSource(code);
@@ -80,11 +84,13 @@ els.visualize.addEventListener('click', async () => {
       if (!Object.prototype.hasOwnProperty.call(state.pyodide.loadedPackages, pkg)) {
         els.status.textContent = `Loading ${pkg} (first use)…`;
         await state.pyodide.loadPackage(pkg);
+        if (epoch !== state.runEpoch) return;   // mode switched during the fetch
         els.status.textContent = 'Executing…';
       }
     }
     state.pyodide.globals.set('__viz_code', code);
     const json = await state.pyodide.runPythonAsync('__viz_run(__viz_code)');
+    if (epoch !== state.runEpoch) return;       // mode switched while executing
     const result = JSON.parse(json);
 
     // The editor was emptied while the run was in flight: discard the result.
@@ -131,6 +137,8 @@ els.visualize.addEventListener('click', async () => {
     render();
     scrollToLine(state.steps[state.idx].line);
   } catch (err) {
+    // A failure from the abandoned mode's run must not land in the new mode.
+    if (epoch !== state.runEpoch) return;
     failed = true;
     state.programError = { text: 'Internal error: ' + (err && err.message || err), line: null };
     state.steps = [];

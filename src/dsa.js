@@ -6,6 +6,7 @@ import { DSA_MODES, DSA_STORE_KEY, dsaEntryById, DSA_DEFAULT_CODE, DEFAULT_CODE 
 import { render } from './panels/output.js';
 import { renderEditor } from './editor/render.js';
 import { stopPlayback } from './navigation/play.js';
+import { resetRun } from './runner.js';
 
 // The template currently filling the editor (per-mode defaults, grilled
 // Q1–Q6 2026-11-07). When a new mode is picked, the editor swaps ONLY if it
@@ -184,10 +185,12 @@ export function buildDsaMenu() {
 }
 
 // Resolve the full id against the registry (flat, sub-modes included),
-// update state + breadcrumb label + persistence, then re-render a live trace
-// under the new mode immediately.
+// update state + breadcrumb label + persistence. A real id change clears the
+// previous run (Output + Variables) so no stale result survives the switch;
+// the next Visualize repopulates both boxes.
 function selectDsaOption(id) {
   const entry = dsaEntryById(id);
+  const changed = entry.id !== state.dsaMode;
   state.dsaMode = entry.id;
   stopPlayback();   // a mode swap hard-stops auto-play even if the trace survives (grilled Q10)
 
@@ -242,6 +245,16 @@ function selectDsaOption(id) {
     renderEditor();
   }
 
-  // A live trace re-renders under the new mode immediately.
+  // A different mode/sub-mode invalidates the previous execution: clear the
+  // Output and Variables boxes (and every trace-derived latch/cache) now, so
+  // the new mode starts empty until the next Visualize. Re-picking the
+  // active mode keeps the current results. The epoch
+  // bump makes an in-flight run discard its late result (runner.js).
+  if (changed) {
+    state.runEpoch += 1;
+    resetRun();
+    return;
+  }
+  // Same mode: a live trace still re-renders, preserving any manual tab choice.
   if (state.steps.length && !state.runInProgress) render();
 }

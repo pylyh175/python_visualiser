@@ -26,6 +26,8 @@ export const state = {
   // Run flow / editor lock
   runInProgress: false,   // a Visualize run is currently executing
   locked: false,          // editor locked during playback until handback/edit
+  runEpoch: 0,            // bumped on a DSA mode change; an in-flight run whose
+                          // epoch no longer matches discards its result
 
   // Auto-play (navigation/play.js)
   playing: false,         // a playback pass is advancing steps on a timer
