@@ -60,7 +60,9 @@ export const h = (x, cap) => escapeHtml(py(x, cap));
 
 // One pass over the trace: the tables (first-appearance order), every call
 // on a table (with its nearest operation ancestor), returns and exceptions.
-export function analyseTables(steps, tableAt) {
+// kindFn: method name → operation kind (null = not tracked); the BST
+// visualiser passes its own name lists.
+export function analyseTables(steps, tableAt, kindFn = kindOf) {
   const tables = [];
   const tableIds = new Set();
   const calls = new Map();
@@ -80,7 +82,7 @@ export function analyseTables(steps, tableAt) {
         const parent = k > 0 ? calls.get(stack[k - 1].id) : null;
         c = {
           id: e.id, fn: e.fn, args: e.args || {}, oid: e.oid != null ? String(e.oid) : null,
-          kind: kindOf(e.fn), start: i, end: i, parent: parent ? parent.id : null,
+          kind: kindFn(e.fn), start: i, end: i, parent: parent ? parent.id : null,
         };
         calls.set(e.id, c);
       }
