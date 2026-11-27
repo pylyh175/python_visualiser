@@ -706,7 +706,7 @@ export const DSA_MODES = [
       { id: 'queue', label: 'Queue', status: 'ready' },
       { id: 'circular queue', label: 'Circular Queue', status: 'ready' },
       { id: 'linked-list', label: 'Linked List', status: 'ready' },
-      { id: 'hash-table-linear-probe', label: 'Hash Table (Linear Probing)', status: 'planned' },
+      { id: 'hash-table-linear-probe', label: 'Hash Table (Linear Probing)', status: 'ready' },
       { id: 'hash-table-separate-chaining', label: 'Hash Table (Separate Chaining)', status: 'planned' },
       { id: 'binary-tree', label: 'Binary Tree', status: 'planned' },
       { id: 'binary-search-tree', label: 'Binary Search Tree(BST)', status: 'planned' },
