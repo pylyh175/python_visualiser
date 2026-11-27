@@ -49,6 +49,7 @@ export const els = {
   palindromeBody: document.getElementById('palindromeBody'),
   containerBody: document.getElementById('containerBody'),
   // DSA dropdown (custom)
+  dsaDropdown: document.getElementById('dsaDropdown'),
   dsaTrigger: document.getElementById('dsaTrigger'),
   dsaOptions: document.getElementById('dsaOptions'),
   dsaLabel: document.getElementById('dsaLabel'),

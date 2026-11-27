@@ -277,8 +277,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   color: var(--muted);
   transition: transform 0.15s ease;
 }
-.dsa-dropdown:hover .dsa-caret,
-.dsa-dropdown:focus-within .dsa-caret {
+.dsa-dropdown:not(.dsa-suppressed):hover .dsa-caret,
+.dsa-dropdown:not(.dsa-suppressed):focus-within .dsa-caret {
   transform: rotate(180deg);
 }
 
@@ -306,8 +306,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   z-index: 1000;
   display: none;
 }
-.dsa-dropdown:hover .dsa-options,
-.dsa-dropdown:focus-within .dsa-options {
+/* `dsa-suppressed` is set by dsa.js right after a pick (2026-11-27): the
+   pointer/focus that chose the row is still inside, so without this the
+   panel would stay open over the editor. Cleared when the user re-arms. */
+.dsa-dropdown:not(.dsa-suppressed):hover .dsa-options,
+.dsa-dropdown:not(.dsa-suppressed):focus-within .dsa-options {
   display: block;
 }
 .dsa-options li {

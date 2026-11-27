@@ -15,15 +15,18 @@ let lastLoadedDefault = DEFAULT_CODE;
 // Build the hierarchical dropdown from the registry — index.html ships an
 // empty wrapper, so the option tree lives in exactly one place: adding a
 // future category or sub-algorithm means adding one registry entry.
-// Open/close is pure CSS (:hover for the pointer, :focus-within for the
-// keyboard — see style.css); JS handles selection, persistence and accepts
-// nothing about visibility. Mode dispatch goes through state.dsaMode (an id
-// like 'stack' or 'two-pointers.two-sum'); the trigger label is a cosmetic
-// breadcrumb only (2026-11-04 dropdown grill, Q1/Q2).
+// Open/close is still pure CSS (:hover for the pointer, :focus-within for the
+// keyboard — see style.css); JS adds one `dsa-suppressed` class after a pick
+// so the panel collapses instead of staying under the pointer/focus, then
+// clears it when the user re-arms (pointer leave, trigger click/key/focus).
+// Mode dispatch goes through state.dsaMode (an id like 'stack' or
+// 'two-pointers.two-sum'); the trigger label is a cosmetic breadcrumb only
+// (2026-11-04 dropdown grill, Q1/Q2; collapse-after-pick 2026-11-27 Q1–Q6).
 export function buildDsaMenu() {
   const options = els.dsaOptions;
   const trigger = els.dsaTrigger;
-  if (!options || !trigger) return;
+  const dropdown = els.dsaDropdown || (trigger && trigger.closest('.dsa-dropdown'));
+  if (!options || !trigger || !dropdown) return;
 
   options.innerHTML = '';
   for (const mode of DSA_MODES) {
@@ -104,20 +107,80 @@ export function buildDsaMenu() {
     || DSA_MODES.some((m) => (m.subModes || []).some((s) => s.id === id));
   selectDsaOption(known(saved) ? saved : 'none');
 
-  // Selection: any leaf — top-level or sub-mode. The click handler is the only
-  // JS the menu needs; hover visibility, submenu placement and the
-  // cursor-bridge between parent row and submenu are all style.css.
+  // ── Collapse after a selection (2026-11-27 grilled Q1–Q6) ──
+  // Visibility stays CSS; this class only blocks the :hover/:focus-within
+  // open rules, so the existing hover, caret and submenu behaviour is intact.
+  // Re-arming (Q2/Q3): a pointer pick drops focus, so leaving the dropdown
+  // clears the flag and hovering back opens it; a keyboard pick keeps focus
+  // on the trigger, and a click / Enter / Space / Arrow key re-opens.
+  const setExpanded = (open) => {
+    const value = open ? 'true' : 'false';
+    dropdown.setAttribute('aria-expanded', value);
+    trigger.setAttribute('aria-expanded', value);
+  };
+  const release = () => dropdown.classList.remove('dsa-suppressed');
+  const suppress = () => {
+    dropdown.classList.add('dsa-suppressed');
+    setExpanded(false);
+  };
+
+  // aria-expanded mirrors what CSS is already showing (Q4). Pointer leave
+  // closes the hover-open menu; when focus is still inside (keyboard user's
+  // place) the menu legitimately stays open, so neither flag nor aria moves.
+  dropdown.addEventListener('mouseenter', () => {
+    if (!dropdown.classList.contains('dsa-suppressed')) setExpanded(true);
+  });
+  dropdown.addEventListener('mouseleave', () => {
+    if (!dropdown.contains(document.activeElement)) {
+      release();
+      setExpanded(false);
+    }
+  });
+  // Focus left the whole control (Tab, Shift+Tab, click into the editor):
+  // re-arm so the next focus can open the menu again.
+  dropdown.addEventListener('focusout', (e) => {
+    if (!e.relatedTarget || !dropdown.contains(e.relatedTarget)) release();
+  });
+  // Arriving from elsewhere re-arms. A programmatic focus after a keyboard
+  // pick runs BEFORE suppress(), so this cannot reopen that menu.
+  trigger.addEventListener('focus', () => {
+    release();
+    setExpanded(true);
+  });
+  trigger.addEventListener('click', () => {
+    release();
+    setExpanded(true);
+  });
+  trigger.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      release();
+      setExpanded(true);
+    }
+  });
+
+  // Selection: any leaf — top-level or sub-mode. A pure-folder row has no
+  // data-value, so clicking it keeps the flyout open (nothing was selected).
   options.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-value]');
     if (!btn) return;
+    const pointer = e.detail > 0;   // keyboard activation reports detail 0
     selectDsaOption(btn.dataset.value);
-    trigger.focus();   // close via :focus-within dropping off the menu
+    if (pointer) {
+      if (dropdown.contains(document.activeElement)) document.activeElement.blur();
+    } else {
+      trigger.focus();
+    }
+    suppress();
   });
 
-  // Escape hands focus back to the trigger, closing BOTH levels at once.
+  // Escape hands focus back to the trigger and collapses BOTH levels.
   options.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') trigger.focus();
+    if (e.key !== 'Escape') return;
+    trigger.focus();   // closes the submenu (focus leaves its row)
+    suppress();        // closes the first level too, keyboard-first
   });
+
+  setExpanded(false);
 }
 
 // Resolve the full id against the registry (flat, sub-modes included),
