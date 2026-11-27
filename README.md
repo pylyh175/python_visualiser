@@ -66,6 +66,12 @@ To stop the server, close its minimized console window.
   freed slots at front hatched (served, never reused), room at rear dashed;
   front/rear glide markers; strip shows `size: N / C` and `front`/`rear` values;
   badges for `empty` / `full` / `full — N freed slots wasted`.
+- **Hash Table (Linear Probing)** — one slot row per table with a load gauge
+  (½ marker); the hash strip walks the key's characters, then the probe shows
+  its home slot, cursor and colour-coded trail (collision / match / empty), with
+  a wrap arrow past the last slot; delete shows the gap, the cluster scan and
+  each re-placed key; rehash keeps the old table dimmed above the new one;
+  a full table gets a "Table is full!" banner.
 - **Two Pointers** — generic two-pointer animation (e.g. two-sum, remove
   duplicates); cell windowing keeps both pointers in view on narrow screens;
   reverse array and palindrome sub-modes.
@@ -91,6 +97,7 @@ To stop the server, close its minimized console window.
 Implemented (v1 + DSA visualisers):
 - stepper UI, arrows, output and variables visualisation for single-file scripts
 - recursion tree, stack, queue, two pointers, container visualisers
+- hash table (linear probing) visualiser
 - responsive layouts: stacked (phone/tablet) with bottom dock + swipe step,
   split (laptop/monitor) side-by-side; CSS device tokens
 - class cards in Variables panel with call facts (×N calls, last return, exceptions)
@@ -99,4 +106,4 @@ Possible next steps:
 - function call stack visualization (nested frames)
 - memory diagram-style object visualisation (Python Tutor style)
 - `input()` support, sharing/loading code from URLs
-- circular queue, linked list, hash table visualisers
+- circular queue, linked list visualisers, hash table (separate chaining)
