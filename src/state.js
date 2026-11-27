@@ -44,6 +44,7 @@ export const state = {
   llistAnnounced: false,  // the one-time auto-switch to the linked list panel
   htableAnnounced: false, // the one-time auto-switch to the hash table panel
   hchainAnnounced: false, // the one-time auto-switch to the chaining hash table panel
+  bstAnnounced: false, // the one-time auto-switch to the Binary Search Tree panel
   twoPointersAnnounced: false, // the one-time auto-advance of the generic two-pointers pane
   reverseAnnounced: false,// the one-time auto-switch to the reverse panel
   palindromeAnnounced: false, // the one-time auto-switch to the palindrome panel

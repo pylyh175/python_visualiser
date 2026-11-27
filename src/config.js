@@ -1072,7 +1072,7 @@ export const DSA_MODES = [
       { id: 'linked-list', label: 'Linked List', status: 'ready' },
       { id: 'hash-table-linear-probe', label: 'Hash Table (Linear Probing)', status: 'ready' },
       { id: 'hash-table-separate-chaining', label: 'Hash Table (Separate Chaining)', status: 'ready' },
-      { id: 'binary-search-tree', label: 'Binary Search Tree(BST)', status: 'planned' },
+      { id: 'binary-search-tree', label: 'Binary Search Tree(BST)', status: 'ready' },
       { id: 'avl-tree', label: 'AVL Tree', status: 'planned' },
       { id: 'red-black-tree', label: 'Red Black Tree', status: 'planned' },
       { id: 'b-tree', label: 'B-Tree', status: 'planned' },

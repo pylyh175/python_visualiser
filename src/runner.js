@@ -29,6 +29,7 @@ export function resetRun() {
   state.llistAnnounced = false;
   state.htableAnnounced = false;
   state.hchainAnnounced = false;
+  state.bstAnnounced = false;
   state.twoPointersAnnounced = false;
   state.reverseAnnounced = false;
   state.palindromeAnnounced = false;
